@@ -4,7 +4,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MEDIA_DIR="$(dirname "$SCRIPT_DIR")/media"
 API_URL="${CHIP_FAI_API_URL:-https://chip-fai.vercel.app/api/process-image}"
-TOKEN="${CHIP_FAI_API_TOKEN:-ai_universe_2024_secure_token_x71276}"
+
+# Load token from env or .env file
+if [[ -z "${CHIP_FAI_API_TOKEN:-}" ]]; then
+    ENV_FILE="$(dirname "$SCRIPT_DIR")/.env"
+    [[ -f "$ENV_FILE" ]] && source "$ENV_FILE"
+fi
+
+TOKEN="${CHIP_FAI_API_TOKEN:-}"
+[[ -z "$TOKEN" ]] && { echo "Error: CHIP_FAI_API_TOKEN not set. Create .env from .env.example"; exit 1; }
 
 mkdir -p "$MEDIA_DIR"
 
