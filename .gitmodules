@@ -1,0 +1,3 @@
+[submodule "skills/chip-fai/repo"]
+	path = skills/chip-fai/repo
+	url = https://github.com/evgyur/chip-fai.git
