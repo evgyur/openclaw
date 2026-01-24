@@ -1,318 +1,171 @@
 #!/usr/bin/env python3
-"""
-Main workflow handler for chip-fai skill
-Manages multi-step image generation process with inline buttons
-"""
+"""Workflow handler for chip-fai multi-step generation"""
 
 import json
-import sys
 import subprocess
 from pathlib import Path
-from session_state import SessionState, cleanup_expired_sessions
+from session_state import SessionState, cleanup_expired
 
-SCRIPT_DIR = Path(__file__).parent
-SKILL_DIR = SCRIPT_DIR.parent
+SCRIPTS = Path(__file__).parent
 
-def load_models_config():
-    """Load parsed models configuration"""
+def run_script(name):
+    """Run script and return JSON output"""
     result = subprocess.run(
-        ['python3', str(SCRIPT_DIR / 'parse_models.py')],
+        ['python3', SCRIPTS / f'{name}.py'],
         capture_output=True,
         text=True,
         check=True
     )
     return json.loads(result.stdout)
 
-def load_buttons_config():
-    """Load generated button configurations"""
-    result = subprocess.run(
-        ['python3', str(SCRIPT_DIR / 'generate_buttons.py')],
-        capture_output=True,
-        text=True,
-        check=True
-    )
-    return json.loads(result.stdout)
+def format_buttons(btns, per_row=2):
+    """Format buttons into rows"""
+    return [btns[i:i+per_row] for i in range(0, len(btns), per_row)]
 
-def format_buttons_for_telegram(buttons_list):
-    """
-    Format button list for Clawdbot message tool
-    Returns: [[{text, callback_data}]]
-    """
-    rows = []
-    row = []
-    for btn in buttons_list:
-        row.append(btn)
-        if len(row) == 2:  # 2 buttons per row
-            rows.append(row)
-            row = []
-    if row:  # Add remaining buttons
-        rows.append(row)
-    return rows
+def make_response(msg, btns=None, **extra):
+    """Build response dict"""
+    return {'message': msg, 'buttons': btns or [], **extra}
 
 def handle_start(session_id):
-    """
-    Handle /gen command - show category selection
-    """
-    state = SessionState(session_id)
-    state.reset()  # Start fresh
-    
-    # Show category buttons
-    message = "🎨 **AI Image Generation**\n\nChoose a category:"
-    
-    buttons = [
-        [
+    """Show category selection"""
+    SessionState(session_id).reset()
+    return make_response(
+        "🎨 **AI Image Generation**\n\nChoose a category:",
+        [[
             {"text": "🎨 Create (Text→Image)", "callback_data": "category:create"},
             {"text": "✏️ Edit (Image→Image)", "callback_data": "category:edit"}
-        ],
-        [
+        ], [
             {"text": "✨ Enhance (Quality)", "callback_data": "category:enhance"}
-        ]
-    ]
-    
-    return {
-        'message': message,
-        'buttons': buttons
-    }
+        ]]
+    )
 
-def handle_category_selection(session_id, category):
-    """
-    Handle category selection - show model buttons
-    """
+def handle_category(session_id, category):
+    """Show model buttons for category"""
     state = SessionState(session_id)
     state.set_category(category)
     
-    buttons_config = load_buttons_config()
-    models_config = load_models_config()
+    btn_cfg = run_script('generate_buttons')
+    cat_data = btn_cfg['model_selection'][category]
     
-    category_data = buttons_config['model_selection'][category]
-    category_title = category_data['title']
-    model_buttons = category_data['buttons']
+    btns = format_buttons(cat_data['buttons'])
+    btns.append([{"text": "⬅️ Back", "callback_data": "back:category"}])
     
-    message = f"**{category_title}**\n\nSelect a model:"
-    
-    # Format buttons for Telegram (2 per row)
-    buttons = format_buttons_for_telegram(model_buttons)
-    
-    # Add back button
-    buttons.append([{"text": "⬅️ Back", "callback_data": "back:category"}])
-    
-    return {
-        'message': message,
-        'buttons': buttons
-    }
+    return make_response(f"**{cat_data['title']}**\n\nSelect a model:", btns)
 
-def handle_model_selection(session_id, model_id):
-    """
-    Handle model selection - show aspect ratio or prompt request
-    """
+def handle_model(session_id, model_id):
+    """Show aspect ratio or prompt request"""
     state = SessionState(session_id)
-    models_config = load_models_config()
+    models = run_script('parse_models')
     
-    if model_id not in models_config['models']:
-        return {
-            'message': f"❌ Invalid model: {model_id}",
-            'buttons': []
-        }
+    if model_id not in models['models']:
+        return make_response(f"❌ Invalid model: {model_id}")
     
-    model_config = models_config['models'][model_id]
-    model_name = model_config['name']
-    category = state.get_all()['category']
+    model = models['models'][model_id]
+    category = state.data['category']
+    needs_ratio = category == 'create' and model_id in models['aspect_ratios']
     
-    # Check if model needs aspect ratio
-    if category == 'create' and model_id in models_config['aspect_ratios']:
-        state.set_model(model_id, requires_aspect_ratio=True)
-        
-        buttons_config = load_buttons_config()
-        ratio_buttons = buttons_config['aspect_ratio_selection'][model_id]
-        
-        message = f"**{model_name}**\n\nSelect aspect ratio:"
-        
-        buttons = format_buttons_for_telegram(ratio_buttons)
-        buttons.append([{"text": "⬅️ Back", "callback_data": "back:model"}])
-        
-        return {
-            'message': message,
-            'buttons': buttons
-        }
+    state.set_model(model_id, needs_ratio)
+    
+    if needs_ratio:
+        btn_cfg = run_script('generate_buttons')
+        ratio_btns = btn_cfg['aspect_ratio_selection'][model_id]
+        btns = format_buttons(ratio_btns)
+        btns.append([{"text": "⬅️ Back", "callback_data": "back:model"}])
+        return make_response(f"**{model['name']}**\n\nSelect aspect ratio:", btns)
+    
+    if model.get('requires_image', True):
+        msg = f"**{model['name']}**\n\n"
+        msg += "Upload an image to enhance." if category == 'enhance' else "Upload image + send editing prompt."
     else:
-        state.set_model(model_id, requires_aspect_ratio=False)
-        
-        # Request prompt or image
-        if model_config.get('requires_image', True):
-            if category == 'enhance':
-                message = f"**{model_name}**\n\nPlease upload an image to enhance."
-            else:
-                message = f"**{model_name}**\n\nPlease upload an image and send your editing prompt."
-        else:
-            message = f"**{model_name}**\n\nSend your text prompt to generate an image."
-        
-        return {
-            'message': message,
-            'buttons': []
-        }
+        msg = f"**{model['name']}**\n\nSend your text prompt."
+    
+    return make_response(msg)
 
-def handle_aspect_ratio_selection(session_id, aspect_ratio):
-    """
-    Handle aspect ratio selection - request prompt
-    """
+def handle_ratio(session_id, ratio):
+    """Show prompt request after ratio selection"""
     state = SessionState(session_id)
-    state.set_aspect_ratio(aspect_ratio)
+    state.set_aspect_ratio(ratio)
     
-    models_config = load_models_config()
-    model_id = state.get_all()['model']
-    model_name = models_config['models'][model_id]['name']
+    models = run_script('parse_models')
+    model = models['models'][state.data['model']]
+    ratio_name = models['aspect_ratio_names'].get(ratio, ratio)
     
-    ratio_name = models_config['aspect_ratio_names'].get(aspect_ratio, aspect_ratio)
-    
-    message = f"**{model_name}**\n**Aspect Ratio**: {ratio_name}\n\nSend your text prompt to generate an image."
-    
-    return {
-        'message': message,
-        'buttons': []
-    }
+    return make_response(
+        f"**{model['name']}**\n**Aspect Ratio**: {ratio_name}\n\nSend your text prompt."
+    )
 
 def handle_prompt(session_id, prompt):
-    """
-    Handle prompt text - trigger generation
-    """
+    """Trigger generation"""
     state = SessionState(session_id)
     state.set_prompt(prompt)
     
-    if not state.is_ready_to_generate():
-        return {
-            'message': "❌ Missing required information. Please start over with /gen",
-            'buttons': []
-        }
+    if not state.is_ready():
+        return make_response("❌ Missing info. Restart with /gen")
     
-    # Build generation command
-    state_data = state.get_all()
-    model_id = state_data['model']
-    aspect_ratio = state_data.get('aspect_ratio')
-    image_path = state_data.get('image_path')
+    data = state.data
+    cmd = ['bash', str(SCRIPTS / 'generate.sh'), '--model', data['model'], '--prompt', prompt]
     
-    cmd = [
-        'bash',
-        str(SCRIPT_DIR / 'generate.sh'),
-        '--model', model_id,
-        '--prompt', prompt
-    ]
+    if data.get('aspect_ratio'):
+        cmd.extend(['--aspect-ratio', data['aspect_ratio']])
+    if data.get('image_path'):
+        cmd.extend(['--image', data['image_path']])
     
-    if aspect_ratio:
-        cmd.extend(['--aspect-ratio', aspect_ratio])
+    msg = f"🚀 Generating...\n\n📝 {prompt}"
+    if data.get('aspect_ratio'):
+        models = run_script('parse_models')
+        ratio_name = models['aspect_ratio_names'].get(data['aspect_ratio'], data['aspect_ratio'])
+        msg += f"\n📐 {ratio_name}"
     
-    if image_path:
-        cmd.extend(['--image', image_path])
-    
-    # Execute generation
-    message = f"🚀 Generating with {model_id}...\n\n📝 Prompt: `{prompt}`"
-    
-    if aspect_ratio:
-        models_config = load_models_config()
-        ratio_name = models_config['aspect_ratio_names'].get(aspect_ratio, aspect_ratio)
-        message += f"\n📐 Aspect Ratio: {ratio_name}"
-    
-    return {
-        'message': message,
-        'buttons': [],
-        'generate_cmd': cmd,
-        'state': state_data
-    }
+    return make_response(msg, generate_cmd=cmd, state=data)
 
-def handle_image_upload(session_id, image_path):
-    """
-    Handle image upload - store path and check if ready
-    """
+def handle_image(session_id, image_path):
+    """Store uploaded image"""
     state = SessionState(session_id)
     state.set_image(image_path)
     
-    state_data = state.get_all()
-    category = state_data['category']
+    data = state.data
     
-    if category == 'enhance':
-        # Enhance models don't need prompt, can generate immediately
-        model_id = state_data.get('model')
-        if model_id:
-            cmd = [
-                'bash',
-                str(SCRIPT_DIR / 'generate.sh'),
-                '--model', model_id,
-                '--image', image_path
-            ]
-            
-            return {
-                'message': f"🚀 Enhancing image with {model_id}...",
-                'buttons': [],
-                'generate_cmd': cmd,
-                'state': state_data
-            }
+    if data['category'] == 'enhance' and data.get('model'):
+        cmd = ['bash', str(SCRIPTS / 'generate.sh'), '--model', data['model'], '--image', image_path]
+        return make_response(f"🚀 Enhancing...", generate_cmd=cmd, state=data)
     
-    # For edit models, still need prompt
-    message = "✅ Image received!\n\nNow send your editing prompt."
-    
-    return {
-        'message': message,
-        'buttons': []
-    }
+    return make_response("✅ Image received!\n\nNow send your editing prompt.")
 
 def handle_back(session_id, back_to):
-    """
-    Handle back button - navigate to previous step
-    """
+    """Navigate back"""
     if back_to == 'category':
         return handle_start(session_id)
     elif back_to == 'model':
         state = SessionState(session_id)
-        category = state.get_all()['category']
-        return handle_category_selection(session_id, category)
-    else:
-        return {
-            'message': "❌ Invalid back action",
-            'buttons': []
-        }
+        return handle_category(session_id, state.data['category'])
+    return make_response("❌ Invalid back action")
+
+HANDLERS = {
+    'start': lambda sid, *a: handle_start(sid),
+    'category': handle_category,
+    'model': handle_model,
+    'ratio': handle_ratio,
+    'prompt': handle_prompt,
+    'image': handle_image,
+    'back': handle_back
+}
 
 def main():
-    """
-    CLI interface
-    Usage: handle_workflow.py <session_id> <action> [args...]
-    """
+    import sys
     if len(sys.argv) < 3:
-        print(json.dumps({
-            'error': 'Usage: handle_workflow.py <session_id> <action> [args...]'
-        }))
-        sys.exit(1)
+        sys.exit("Usage: handle_workflow.py <session_id> <action> [args...]")
     
-    session_id = sys.argv[1]
-    action = sys.argv[2]
+    cleanup_expired()
     
-    # Cleanup expired sessions periodically
-    cleanup_expired_sessions()
+    session_id, action = sys.argv[1:3]
+    args = sys.argv[3:]
     
-    result = None
-    
-    if action == 'start':
-        result = handle_start(session_id)
-    elif action == 'category':
-        category = sys.argv[3]
-        result = handle_category_selection(session_id, category)
-    elif action == 'model':
-        model_id = sys.argv[3]
-        result = handle_model_selection(session_id, model_id)
-    elif action == 'ratio':
-        aspect_ratio = sys.argv[3]
-        result = handle_aspect_ratio_selection(session_id, aspect_ratio)
-    elif action == 'prompt':
-        prompt = ' '.join(sys.argv[3:])
-        result = handle_prompt(session_id, prompt)
-    elif action == 'image':
-        image_path = sys.argv[3]
-        result = handle_image_upload(session_id, image_path)
-    elif action == 'back':
-        back_to = sys.argv[3]
-        result = handle_back(session_id, back_to)
+    handler = HANDLERS.get(action)
+    if not handler:
+        print(json.dumps({'error': f'Unknown action: {action}'}))
     else:
-        result = {'error': f'Unknown action: {action}'}
-    
-    print(json.dumps(result, indent=2, ensure_ascii=False))
+        result = handler(session_id, *args)
+        print(json.dumps(result, indent=2, ensure_ascii=False))
 
 if __name__ == '__main__':
     main()
