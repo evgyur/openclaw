@@ -1,0 +1,160 @@
+{
+  "/gen": {
+    "message": "🎨 **AI Image Generation**\n\nChoose a category:",
+    "buttons": [
+      [
+        {"text": "🎨 Create (Text→Image)", "callback_data": "category:create"},
+        {"text": "✏️ Edit (Image→Image)", "callback_data": "category:edit"}
+      ],
+      [
+        {"text": "✨ Enhance (Quality)", "callback_data": "category:enhance"}
+      ]
+    ]
+  },
+  "category:create": {
+    "message": "**🎨 Create (Text-to-Image)**\n\nSelect a model:",
+    "buttons": [
+      [
+        {"text": "Gem3/PRE", "callback_data": "model:nanobana-create"},
+        {"text": "FLUX2-C", "callback_data": "model:flux-pro"}
+      ],
+      [
+        {"text": "RECRAFT", "callback_data": "model:recraft"},
+        {"text": "WAN25/C", "callback_data": "model:wan25-create"}
+      ],
+      [
+        {"text": "⬅️ Back", "callback_data": "back:category"}
+      ]
+    ]
+  },
+  "category:edit": {
+    "message": "**✏️ Edit (Image-to-Image)**\n\nSelect a model:",
+    "buttons": [
+      [
+        {"text": "NANO/BANA1", "callback_data": "model:gemini"},
+        {"text": "NANO/BANA2", "callback_data": "model:nanobana"}
+      ],
+      [
+        {"text": "KONTEXT/M", "callback_data": "model:kontext-max"},
+        {"text": "SEEDREAM/4", "callback_data": "model:seedream-v4"}
+      ],
+      [
+        {"text": "FLUX2-E", "callback_data": "model:flux"},
+        {"text": "WAN25", "callback_data": "model:wan25"}
+      ],
+      [
+        {"text": "CHANGE/BG", "callback_data": "model:changebg"}
+      ],
+      [
+        {"text": "⬅️ Back", "callback_data": "back:category"}
+      ]
+    ]
+  },
+  "category:enhance": {
+    "message": "**✨ Enhance (Improve Quality)**\n\nSelect a model:",
+    "buttons": [
+      [
+        {"text": "RETOUCH", "callback_data": "model:retouch"},
+        {"text": "PHOTO/REST", "callback_data": "model:photorestore"}
+      ],
+      [
+        {"text": "FACE/ENH", "callback_data": "model:faceenhance"},
+        {"text": "REALISM", "callback_data": "model:realism"}
+      ],
+      [
+        {"text": "TEXT-REMV", "callback_data": "model:textremove"},
+        {"text": "JPEG/FIX", "callback_data": "model:jpegfix"}
+      ],
+      [
+        {"text": "UPSCALE", "callback_data": "model:upscale"}
+      ],
+      [
+        {"text": "⬅️ Back", "callback_data": "back:category"}
+      ]
+    ]
+  },
+  "back:category": {
+    "message": "🎨 **AI Image Generation**\n\nChoose a category:",
+    "buttons": [
+      [
+        {"text": "🎨 Create (Text→Image)", "callback_data": "category:create"},
+        {"text": "✏️ Edit (Image→Image)", "callback_data": "category:edit"}
+      ],
+      [
+        {"text": "✨ Enhance (Quality)", "callback_data": "category:enhance"}
+      ]
+    ]
+  },
+  "model:nanobana-create": {
+    "message": "**Gem3/PRE**\n\nSend your text prompt.",
+    "buttons": []
+  },
+  "model:flux-pro": {
+    "message": "**FLUX2-C**\n\nSend your text prompt.",
+    "buttons": []
+  },
+  "model:recraft": {
+    "message": "**RECRAFT**\n\nSend your text prompt.",
+    "buttons": []
+  },
+  "model:wan25-create": {
+    "message": "**WAN25/C**\n\nSend your text prompt.",
+    "buttons": []
+  },
+  "model:gemini": {
+    "message": "**NANO/BANA1**\n\nUpload image + send editing prompt.",
+    "buttons": []
+  },
+  "model:nanobana": {
+    "message": "**NANO/BANA2**\n\nUpload image + send editing prompt.",
+    "buttons": []
+  },
+  "model:kontext-max": {
+    "message": "**KONTEXT/M**\n\nUpload image + send editing prompt.",
+    "buttons": []
+  },
+  "model:seedream-v4": {
+    "message": "**SEEDREAM/4**\n\nUpload image + send editing prompt.",
+    "buttons": []
+  },
+  "model:flux": {
+    "message": "**FLUX2-E**\n\nUpload image + send editing prompt.",
+    "buttons": []
+  },
+  "model:wan25": {
+    "message": "**WAN25**\n\nUpload image + send editing prompt.",
+    "buttons": []
+  },
+  "model:changebg": {
+    "message": "**CHANGE/BG**\n\nUpload image + send editing prompt.",
+    "buttons": []
+  },
+  "model:retouch": {
+    "message": "**RETOUCH**\n\nUpload image + send editing prompt.",
+    "buttons": []
+  },
+  "model:photorestore": {
+    "message": "**PHOTO/REST**\n\nUpload image + send editing prompt.",
+    "buttons": []
+  },
+  "model:faceenhance": {
+    "message": "**FACE/ENH**\n\nUpload image + send editing prompt.",
+    "buttons": []
+  },
+  "model:realism": {
+    "message": "**REALISM**\n\nUpload image + send editing prompt.",
+    "buttons": []
+  },
+  "model:textremove": {
+    "message": "**TEXT-REMV**\n\nUpload image + send editing prompt.",
+    "buttons": []
+  },
+  "model:jpegfix": {
+    "message": "**JPEG/FIX**\n\nUpload image + send editing prompt.",
+    "buttons": []
+  },
+  "model:upscale": {
+    "message": "**UPSCALE**\n\nUpload image + send editing prompt.",
+    "buttons": []
+  }
+}
