@@ -86,7 +86,6 @@ def cleanup_expired():
             if created < cutoff:
                 f.unlink()
         except (json.JSONDecodeError, KeyError, ValueError, OSError):
-            # Corrupted or inaccessible file, skip
             continue
 
 def main():
@@ -96,7 +95,6 @@ def main():
     
     if sys.argv[1] == 'cleanup':
         cleanup_expired()
-        print("Cleaned up expired sessions")
         return
     
     state = SessionState(sys.argv[1])
@@ -105,19 +103,14 @@ def main():
         print(json.dumps(state.data, indent=2))
     elif sys.argv[2] == 'reset':
         state.reset()
-        print("Reset")
     elif sys.argv[2] == 'set-category':
         state.set_category(sys.argv[3])
-        print(f"Category: {sys.argv[3]}")
     elif sys.argv[2] == 'set-model':
         state.set_model(sys.argv[3], len(sys.argv) > 4 and sys.argv[4] in ['true', '1', 'yes'])
-        print(f"Model: {sys.argv[3]}")
     elif sys.argv[2] == 'set-ratio':
         state.set_aspect_ratio(sys.argv[3])
-        print(f"Ratio: {sys.argv[3]}")
     elif sys.argv[2] == 'set-prompt':
         state.set_prompt(' '.join(sys.argv[3:]))
-        print("Prompt set")
 
 if __name__ == '__main__':
     main()

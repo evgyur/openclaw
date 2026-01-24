@@ -54,7 +54,7 @@ MODEL_CFG=$(echo "$MODELS_JSON" | jq -r ".models[\"$MODEL\"]")
 
 REQUIRES_PROMPT=$(echo "$MODEL_CFG" | jq -r '.requires_prompt')
 CATEGORY=$(echo "$MODEL_CFG" | jq -r '.category')
-REQUIRES_IMAGE=$(echo "$MODEL_CFG" | jq -r --arg cat "$CATEGORY" '.requires_image // ($cat != "create")')  # Default true except for create
+REQUIRES_IMAGE=$(echo "$MODEL_CFG" | jq -r --arg cat "$CATEGORY" '.requires_image // ($cat != "create")')
 
 [[ "$REQUIRES_PROMPT" == "true" && -z "$PROMPT" ]] && { echo "Error: Model requires prompt"; exit 1; }
 [[ "$REQUIRES_IMAGE" == "true" && -z "$IMAGE_PATH" ]] && { echo "Error: Model requires image"; exit 1; }
@@ -63,10 +63,7 @@ REQUIRES_IMAGE=$(echo "$MODEL_CFG" | jq -r --arg cat "$CATEGORY" '.requires_imag
 [[ "$CATEGORY" == "create" && -z "$ASPECT_RATIO" ]] && ASPECT_RATIO="square"
 
 IMAGE_DATA=""
-if [[ -n "$IMAGE_PATH" ]]; then
-    echo "Converting image to base64..."
-    IMAGE_DATA="data:image/jpeg;base64,$(base64 -w 0 "$IMAGE_PATH")"
-fi
+[[ -n "$IMAGE_PATH" ]] && IMAGE_DATA="data:image/jpeg;base64,$(base64 -w 0 "$IMAGE_PATH")"
 
 PAYLOAD=$(jq -n \
     --arg model "$MODEL" \
@@ -78,10 +75,6 @@ PAYLOAD=$(jq -n \
     + (if $img != "" then {imageData: $img} else {} end)')
 
 [[ -z "$OUTPUT_PATH" ]] && OUTPUT_PATH="$MEDIA_DIR/$(echo "$MODEL" | tr '/' '_')_$(date +%s).jpg"
-
-echo "Generating with $MODEL..."
-[[ -n "$PROMPT" ]] && echo "Prompt: $PROMPT"
-[[ -n "$ASPECT_RATIO" ]] && echo "Ratio: $ASPECT_RATIO"
 
 HTTP_RESP=$(curl -s -w "\n%{http_code}" \
     -X POST \
@@ -97,19 +90,13 @@ HTTP_CODE=$(echo "$HTTP_RESP" | tail -n 1)
 
 [[ "$HTTP_CODE" != "200" ]] && { echo "Error: HTTP $HTTP_CODE"; echo "$HTTP_BODY"; exit 1; }
 
-# API returns URL or base64 depending on model
 IMAGE_URL=$(echo "$HTTP_BODY" | jq -r '.image // .images[0].url // empty')
-
 [[ -z "$IMAGE_URL" ]] && { echo "Error: No image in response"; echo "$HTTP_BODY"; exit 1; }
 
-# Download from URL or decode base64
 if [[ "$IMAGE_URL" =~ ^https?:// ]]; then
-    echo "Downloading image from URL..."
     curl -sf "$IMAGE_URL" -o "$OUTPUT_PATH" || { echo "Error: Download failed"; exit 1; }
 else
-    # Base64 data
     echo "$IMAGE_URL" | sed 's/^data:image\/[^;]*;base64,//' | base64 -d > "$OUTPUT_PATH"
 fi
 
-echo "Success! Saved to: $OUTPUT_PATH"
 echo "$OUTPUT_PATH"
