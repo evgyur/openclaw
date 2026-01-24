@@ -53,8 +53,8 @@ MODEL_CFG=$(echo "$MODELS_JSON" | jq -r ".models[\"$MODEL\"]")
 }
 
 REQUIRES_PROMPT=$(echo "$MODEL_CFG" | jq -r '.requires_prompt')
-REQUIRES_IMAGE=$(echo "$MODEL_CFG" | jq -r '.requires_image')
 CATEGORY=$(echo "$MODEL_CFG" | jq -r '.category')
+REQUIRES_IMAGE=$(echo "$MODEL_CFG" | jq -r --arg cat "$CATEGORY" '.requires_image // ($cat != "create")')  # Default true except for create
 
 [[ "$REQUIRES_PROMPT" == "true" && -z "$PROMPT" ]] && { echo "Error: Model requires prompt"; exit 1; }
 [[ "$REQUIRES_IMAGE" == "true" && -z "$IMAGE_PATH" ]] && { echo "Error: Model requires image"; exit 1; }
