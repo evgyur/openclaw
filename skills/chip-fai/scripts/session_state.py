@@ -85,8 +85,9 @@ def cleanup_expired():
             created = datetime.fromisoformat(json.loads(f.read_text()).get('created', '2000-01-01'))
             if created < cutoff:
                 f.unlink()
-        except:
-            pass
+        except (json.JSONDecodeError, KeyError, ValueError, OSError):
+            # Corrupted or inaccessible file, skip
+            continue
 
 def main():
     import sys

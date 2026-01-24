@@ -3,8 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MEDIA_DIR="$(dirname "$SCRIPT_DIR")/media"
-API_URL="https://chip-fai.vercel.app/api/process-image"
-TOKEN="ai_universe_2024_secure_token_x71276"
+API_URL="${CHIP_FAI_API_URL:-https://chip-fai.vercel.app/api/process-image}"
+TOKEN="${CHIP_FAI_API_TOKEN:-ai_universe_2024_secure_token_x71276}"
 
 mkdir -p "$MEDIA_DIR"
 
@@ -97,13 +97,19 @@ HTTP_CODE=$(echo "$HTTP_RESP" | tail -n 1)
 
 [[ "$HTTP_CODE" != "200" ]] && { echo "Error: HTTP $HTTP_CODE"; echo "$HTTP_BODY"; exit 1; }
 
-SUCCESS=$(echo "$HTTP_BODY" | jq -r '.success')
-[[ "$SUCCESS" != "true" ]] && { echo "Error: Generation failed"; echo "$HTTP_BODY"; exit 1; }
+# API returns URL or base64 depending on model
+IMAGE_URL=$(echo "$HTTP_BODY" | jq -r '.image // .images[0].url // empty')
 
-IMAGE_B64=$(echo "$HTTP_BODY" | jq -r '.image')
-[[ -z "$IMAGE_B64" || "$IMAGE_B64" == "null" ]] && { echo "Error: No image in response"; exit 1; }
+[[ -z "$IMAGE_URL" ]] && { echo "Error: No image in response"; echo "$HTTP_BODY"; exit 1; }
 
-echo "$IMAGE_B64" | sed 's/^data:image\/[^;]*;base64,//' | base64 -d > "$OUTPUT_PATH"
+# Download from URL or decode base64
+if [[ "$IMAGE_URL" =~ ^https?:// ]]; then
+    echo "Downloading image from URL..."
+    curl -sf "$IMAGE_URL" -o "$OUTPUT_PATH" || { echo "Error: Download failed"; exit 1; }
+else
+    # Base64 data
+    echo "$IMAGE_URL" | sed 's/^data:image\/[^;]*;base64,//' | base64 -d > "$OUTPUT_PATH"
+fi
 
 echo "Success! Saved to: $OUTPUT_PATH"
 echo "$OUTPUT_PATH"
