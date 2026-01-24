@@ -72,13 +72,28 @@ else
     EXIT_CODE=1
 fi
 
-# Check 7: API connectivity
+# Check 7: API token validity
+echo -n "API token: "
+if [[ -f "$SKILL_DIR/.env" ]]; then
+    source "$SKILL_DIR/.env"
+fi
+TOKEN="${CHIP_FAI_API_TOKEN:-}"
+if [[ -z "$TOKEN" ]]; then
+    echo "FAIL (not set)"
+    EXIT_CODE=1
+elif [[ ${#TOKEN} -lt 10 ]]; then
+    echo "FAIL (too short)"
+    EXIT_CODE=1
+else
+    echo "OK (${#TOKEN} chars)"
+fi
+
+# Check 8: API connectivity
 echo -n "API connectivity: "
 API_URL="${CHIP_FAI_API_URL:-https://chip-fai.vercel.app/api/process-image}"
 if curl -sf -X OPTIONS "$API_URL" -m 5 &>/dev/null; then
     echo "OK"
 else
-    # OPTIONS might not be supported, try HEAD
     if curl -sf -I "$API_URL" -m 5 &>/dev/null; then
         echo "OK"
     else

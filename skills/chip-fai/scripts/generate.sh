@@ -84,14 +84,31 @@ PAYLOAD=$(jq -n \
 
 [[ -z "$OUTPUT_PATH" ]] && OUTPUT_PATH="$MEDIA_DIR/$(echo "$MODEL" | tr '/' '_')_$(date +%s).jpg"
 
-HTTP_RESP=$(curl -s -w "\n%{http_code}" \
-    -X POST \
-    -H "Content-Type: application/json" \
-    -H "X-Internal-Auth: $TOKEN" \
-    -H "Authorization: Bearer $TOKEN" \
-    --max-time 180 \
-    -d "$PAYLOAD" \
-    "$API_URL")
+# Retry API call up to 3 times
+MAX_RETRIES=3
+RETRY_COUNT=0
+
+while [[ $RETRY_COUNT -lt $MAX_RETRIES ]]; do
+    HTTP_RESP=$(curl -s -w "\n%{http_code}" \
+        -X POST \
+        -H "Content-Type: application/json" \
+        -H "X-Internal-Auth: $TOKEN" \
+        -H "Authorization: Bearer $TOKEN" \
+        --max-time 180 \
+        -d "$PAYLOAD" \
+        "$API_URL")
+    
+    HTTP_CODE=$(echo "$HTTP_RESP" | tail -n 1)
+    
+    # Success or non-retryable error
+    if [[ "$HTTP_CODE" == "200" ]] || [[ "$HTTP_CODE" == "400" ]] || [[ "$HTTP_CODE" == "401" ]] || [[ "$HTTP_CODE" == "403" ]]; then
+        break
+    fi
+    
+    # Retryable error (5xx, network issues)
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    [[ $RETRY_COUNT -lt $MAX_RETRIES ]] && sleep $((RETRY_COUNT * 2))  # Exponential backoff
+done
 
 HTTP_BODY=$(echo "$HTTP_RESP" | head -n -1)
 HTTP_CODE=$(echo "$HTTP_RESP" | tail -n 1)
@@ -103,6 +120,10 @@ IMAGE_URL=$(echo "$HTTP_BODY" | jq -r '.image // .images[0].url // empty')
 
 if [[ "$IMAGE_URL" =~ ^https?:// ]]; then
     curl -sf "$IMAGE_URL" -o "$OUTPUT_PATH" || { echo "Error: Download failed"; exit 1; }
+    
+    # Validate downloaded file
+    FILE_SIZE=$(stat -f%z "$OUTPUT_PATH" 2>/dev/null || stat -c%s "$OUTPUT_PATH" 2>/dev/null)
+    [[ "$FILE_SIZE" -lt 1000 ]] && { echo "Error: Downloaded file too small ($FILE_SIZE bytes), likely corrupt"; rm -f "$OUTPUT_PATH"; exit 1; }
 else
     echo "$IMAGE_URL" | sed 's/^data:image\/[^;]*;base64,//' | base64 -d > "$OUTPUT_PATH"
 fi
