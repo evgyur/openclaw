@@ -6,6 +6,27 @@
 
 ---
 
+## Нюансы (обновлено 2026-01-30)
+
+### Windows/WSL
+Если работаешь из Windows (Git Bash, PowerShell, Cursor), команды нужно запускать через WSL:
+```bash
+wsl -e bash -c "systemctl --user status clawdbot-gateway.service"
+```
+
+### Путь к clawdbot
+Clawdbot может быть установлен в разных местах:
+- `~/clawdbot/` (локальная установка)
+- `~/.nvm/versions/node/vXX/lib/node_modules/clawdbot/` (npm global)
+
+Проверить: `which clawdbot` или `find ~ -name "format.js" -path "*clawdbot*" 2>/dev/null`
+
+### Telegram format patch (v2026.1.20+)
+Начиная с v2026.1.20, функция `fixTelegramSpacing` встроена в openclaw — патч **не нужен**.
+Проверить: `grep -q "fixTelegramSpacing" /path/to/clawdbot/dist/telegram/format.js`
+
+---
+
 ## Преамбула
 
 **Форк `evgyur/openclaw`** — это форк основного репозитория `openclaw/openclaw` с добавленными:
@@ -205,20 +226,25 @@ git stash pop 2>/dev/null || echo "No stash to pop"
 
 ---
 
-## Шаг 9: Применить telegram format patch (если нужно)
+## Шаг 9: Проверить telegram format (v2026.1.20+)
+
+> **Note:** Начиная с v2026.1.20, `fixTelegramSpacing` встроена в openclaw. Патч нужен только для старых версий.
 
 ```bash
-# Проверить, применён ли патч
-CLAWDBOT_FORMAT=$(find ~/.nvm -name "format.js" -path "*/clawdbot/dist/telegram/format.js" 2>/dev/null | head -1)
+# Найти format.js (может быть в разных местах)
+CLAWDBOT_FORMAT=$(find ~/clawdbot ~/.nvm -name "format.js" -path "*clawdbot/dist/telegram*" 2>/dev/null | head -1)
 
 if [ -n "$CLAWDBOT_FORMAT" ]; then
-    if grep -q "Fix: Telegram removes empty lines" "$CLAWDBOT_FORMAT"; then
-        echo "✅ Патч уже применён"
+    # Проверить встроенный fixTelegramSpacing (v2026.1.20+)
+    if grep -q "fixTelegramSpacing" "$CLAWDBOT_FORMAT"; then
+        echo "✅ fixTelegramSpacing встроен (v2026.1.20+), патч не нужен"
+    # Проверить ручной патч (старые версии)
+    elif grep -q "Fix: Telegram removes empty lines" "$CLAWDBOT_FORMAT"; then
+        echo "✅ Ручной патч уже применён"
     else
         echo "⚠️ Патч не применён, применяю..."
-        ~/clawd/apply-telegram-format-patch-simple.sh || \
-        ~/clawd/scripts/patches/apply-telegram-format-patch-simple.sh 2>/dev/null || \
-        echo "❌ Скрипт патча не найден"
+        bash ~/clawd/apply-telegram-format-patch-simple.sh "$CLAWDBOT_FORMAT" || \
+        echo "❌ Ошибка применения патча"
     fi
 else
     echo "⚠️ Clawdbot format.js не найден"
