@@ -1,0 +1,15 @@
+{
+  "name": "backup-restore",
+  "description": "Full backup and restore of Clawdbot configuration",
+  "version": "1.0.0",
+  "author": "eyurc",
+  "user-invocable": true,
+  "command-dispatch": "tool",
+  "trigger": {
+    "patterns": [
+      "/backup",
+      "backup",
+      "create backup"
+    ]
+  }
+}

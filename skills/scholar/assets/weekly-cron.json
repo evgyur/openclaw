@@ -1,0 +1,15 @@
+{
+  "name": "weekly-scholar",
+  "enabled": true,
+  "schedule": {
+    "kind": "cron",
+    "expr": "0 21 * * 0",
+    "tz": "Europe/Moscow"
+  },
+  "sessionTarget": "main",
+  "wakeMode": "now",
+  "payload": {
+    "kind": "systemEvent",
+    "text": "📊 WEEKLY SELF-REVIEW SUMMARY\n\nTask: Analyze your mistakes and improvements for the week.\n\n1. Read .learnings/LEARNINGS.md\n2. Filter entries from the last 7 days (by Logged field)\n3. Group by tags (confidence/speed/depth/uncertainty)\n4. Calculate:\n   - Total MISS for the week\n   - How many marked as applied (fixed)\n   - Most common tag (error pattern)\n5. Identify top-3 patterns to focus on next week\n\nReport format:\n\n📊 **Self-Review: week [date]**\n⠀\n**Statistics:**\n• Total MISS: X\n• Fixed: Y\n• Common tag: [tag]\n⠀\n**Top patterns:**\n1. [description] — occurred N times\n2. ...\n⠀\n**Focus for next week:**\n• [specific action]\n\nSend to user via message tool."
+  }
+}
