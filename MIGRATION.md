@@ -15,9 +15,10 @@
 - Backup scripts
 
 **Для пользователя Chip (eyurc):**
-- Skills остаются локальные, НЕ заменяются из форка
+- **Skills остаются локальные, НЕ заменяются из форка** — папка `~/clawd/skills/` не трогается
 - Меняется только git remote
 - Все данные и конфиги сохраняются
+- НЕ делать `git checkout origin/main` или `git reset --hard` — это затрёт локальные skills
 
 ---
 
@@ -152,7 +153,7 @@ git branch -a
 ```bash
 cd ~/clawd
 
-# Создать ветку с текущим состоянием
+# Создать ветку с текущим состоянием (сохраняет все локальные skills!)
 git checkout -b personal-setup
 
 # Проверить
@@ -160,6 +161,9 @@ git branch
 ```
 
 **Ожидаемый результат:** Текущая ветка `personal-setup`, main остаётся как была.
+
+> **ВАЖНО:** НЕ делать `git merge origin/main` или `git reset` — это может затереть локальные skills.
+> Ветка `personal-setup` сохраняет твои локальные файлы как есть.
 
 ---
 
@@ -306,6 +310,7 @@ git merge origin/main
 
 | Компонент | Путь | Статус |
 |-----------|------|--------|
+| **Local skills** | `~/clawd/skills/` | ✅ **Остаются локальные, НЕ из форка** |
 | Clawdbot config | `~/.clawdbot/` | ✅ Не трогается |
 | Cron jobs | `~/.clawdbot/cron/jobs.json` | ✅ Не трогается |
 | Telegram credentials | `~/.clawdbot/credentials/` | ✅ Не трогается |
