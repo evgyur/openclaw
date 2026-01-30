@@ -1,0 +1,53 @@
+{
+  "description": "Homoglyph character mappings for Unicode normalization",
+  "version": "1.0",
+  "mappings": {
+    "cyrillic": {
+      "а": "a",
+      "е": "e",
+      "о": "o",
+      "р": "p",
+      "с": "c",
+      "х": "x",
+      "А": "A",
+      "Е": "E",
+      "О": "O",
+      "Р": "P",
+      "С": "C",
+      "Х": "X"
+    },
+    "greek": {
+      "α": "a",
+      "β": "b",
+      "ε": "e",
+      "ο": "o",
+      "ρ": "p",
+      "χ": "x",
+      "ω": "w"
+    },
+    "fullwidth": {
+      "ａ": "A",
+      "ｂ": "B",
+      "ｃ": "C",
+      "Ａ": "A",
+      "Ｂ": "B",
+      "Ｃ": "C"
+    },
+    "mathematical": {
+      "𝐚": "a",
+      "𝐛": "b",
+      "𝐀": "A",
+      "𝐁": "B",
+      "𝖆": "a",
+      "𝖇": "b",
+      "𝕬": "A",
+      "𝕭": "B"
+    }
+  },
+  "normalization_rules": [
+    "NFKC normalization before comparison",
+    "Replace homoglyphs with ASCII equivalents",
+    "Flag messages with >20% non-ASCII characters",
+    "Flag messages with mixed scripts"
+  ]
+}
