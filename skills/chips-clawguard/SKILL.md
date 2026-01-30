@@ -147,30 +147,50 @@ node tests/test-attack.js "Ignore previous instructions"
 
 ## Security Self-Check / Audit
 
-Automated security audit for your Clawdbot setup.
+Automated security audit for your Clawdbot setup. Based on `dont-hack-me` by peterann (小安) with additional checks.
 
-### What It Checks
+### What It Checks (18+ checks)
 
 | Category | Checks |
 |----------|--------|
-| **Configuration** | SECURITY.md exists, .clawdbot permissions |
-| **Environment** | .env file security, secret storage |
+| **Gateway** | Bind address, auth mode, token strength, CVE-2025-49596 reverse proxy bypass |
+| **Channels** | DM policy, group policy, allowlists |
+| **Network** | Tailscale exposure, open ports, mDNS broadcasting |
+| **Browser** | Control token configured |
+| **Logging** | Sensitive data redaction |
+| **Configuration** | SECURITY.md, .clawdbot permissions, plaintext secrets |
+| **Environment** | .env file security |
 | **Skills** | Suspicious patterns, executable scripts |
 | **Credentials** | SSH keys, AWS creds, Docker config |
-| **Network** | Open ports, gateway exposure |
-| **Logs** | Log directory accessibility |
+
+### Critical Checks from dont-hack-me
+
+1. ✅ **Gateway Bind** — loopback vs exposed (CRITICAL)
+2. ✅ **Gateway Auth** — token/password configured (CRITICAL)
+3. ✅ **Token Strength** — min 32 chars (HIGH)
+4. ✅ **DM Policy** — not "open" (HIGH)
+5. ✅ **Group Policy** — not "open" (HIGH)
+6. ✅ **File Permissions** — config 600, dir 700 (MEDIUM)
+7. ✅ **Plaintext Secrets** — scan for passwords/keys (MEDIUM)
+8. ✅ **Reverse Proxy** — CVE-2025-49596 bypass (CRITICAL)
+9. ✅ **Tailscale Exposure** — off/serve/funnel (HIGH/CRITICAL)
+10. ✅ **Directory Permissions** — .clawdbot 700
+11. ✅ **Browser Control** — control token set (HIGH)
+12. ✅ **Logging Redaction** — redactSensitive enabled (MEDIUM)
+13. ✅ **Control UI** — disabled or secured (MEDIUM)
+14. ✅ **mDNS Broadcasting** — Bonjour disabled (MEDIUM)
 
 ### Usage
 
 ```bash
-# Full audit (all checks)
+# Full audit (18+ checks)
 node -e "
 const { securitySelfCheck } = require('./security-self-check');
 const report = securitySelfCheck.runFullAudit();
 console.log(securitySelfCheck.formatReport(report));
 "
 
-# Quick check (critical items only)
+# Quick check (5 critical items)
 node -e "
 const { securitySelfCheck } = require('./security-self-check');
 const results = securitySelfCheck.runQuickCheck();
@@ -181,24 +201,31 @@ console.log(results);
 ### Example Output
 
 ```
-🛡️  Chip's Clawguard Security Audit
+🛡️  Chip's Clawguard Security Audit v1.1
 Timestamp: 2026-01-31T00:15:00.000Z
 Overall Score: 85/100
 
-📊 Summary: 8 ✅  3 ⚠️  0 ❌
+📊 Summary: 12 ✅  4 ⚠️  1 ❌
 
-## Configuration
-✅ SECURITY.md exists
-✅ .clawdbot has secure permissions (700)
+## Gateway
+✅ Gateway bound to loopback (safe)
+✅ Auth token configured
+✅ Token strength: 64 chars (strong)
+❌ CVE-2025-49596: Exposed gateway without trustedProxies
+   💡 Set gateway.trustedProxies to ["127.0.0.1"]
 
-## Credentials
-✅ id_rsa has correct permissions (600)
-⚠️  .aws/credentials exists with permissions 644
-   💡 Run: chmod 600 ~/.aws/credentials
+## Channels
+✅ telegram: DM policy is allowlist
+✅ telegram: Group policy is allowlist
 
 ## Network
-✅ Clawdbot gateway ports detected
-✅ Gateway is running
+⚠️  mDNS/Bonjour broadcasting enabled
+   💡 Add export CLAWDBOT_DISABLE_BONJOUR=1 to ~/.bashrc
+
+## Credentials
+✅ id_rsa: permissions 600
+⚠️  .aws/credentials: permissions 644
+   💡 Run: chmod 600 ~/.aws/credentials
 ```
 
 ---
@@ -232,4 +259,16 @@ chips-clawguard/
 
 ## Version
 
-**Chip's Clawguard v1.0** — "Maximum Overdrive"
+**Chip's Clawguard v1.1** — "Maximum Overdrive + Self-Audit"
+
+### Changelog
+
+**v1.1** — Added security self-check module with 18+ checks:
+- All 14 checks from `dont-hack-me` (CVE-2025-49596, Tailscale, etc.)
+- Gateway bind, auth, token strength verification
+- DM/Group policy validation
+- Reverse proxy bypass detection (CRITICAL)
+- Browser control, logging redaction checks
+- Additional credential and permission checks
+
+**v1.0** — Initial release with 9 defense layers
