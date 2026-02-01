@@ -1,0 +1,89 @@
+# Enterprise Configuration Preset
+# Maximum security and compliance for production environments
+
+version: "1.0.0"
+
+grill:
+  strictness: strict
+  focusAreas:
+    - security
+    - performance
+    - api
+    - tests
+    - documentation
+  requireTestsFor:
+    - "src/**/*.ts"
+    - "lib/**/*.py"
+    - "!**/*.d.ts"
+    - "!**/vendor/**"
+  autoApproveOwnPRs: false
+  maxReviewDepth: 5
+  failOnErrors: true
+  baseBranch: main
+
+useSubagents:
+  enabled: true
+  defaultWorkerCount: 4
+  maxParallel: 8
+  timeoutSeconds: 300
+  synthesisModel: opus
+  taskQueueSize: 20
+  workerRoles:
+    - research
+    - audit
+    - draft
+    - verify
+    - compliance  # Extra compliance review
+
+opusGuard:
+  enabled: true
+  riskThresholds:
+    message_send: 0.5
+    file_write: 0.6
+    file_delete: 0.8
+    exec_elevated: 0.7
+    exec_normal: 0.4
+    browser_sensitive: 0.4
+    api_call: 0.5
+  
+  # Minimal auto-approval in enterprise mode
+  autoApprove:
+    - pattern: "exec git status"
+      confidence: 0.99
+    - pattern: "exec git log *"
+      confidence: 0.99
+    - pattern: "read *"
+      confidence: 0.99
+    - pattern: "web_fetch *"
+      confidence: 0.95
+  
+  escalationChannel: security-audit
+  
+  emergencyOverride:
+    enabled: true
+    requireConfirmation: true
+    timeoutSeconds: 120  # Longer confirmation window for oversight
+  
+  auditLog:
+    enabled: true
+    path: /var/log/clawdbot/opus-guard-audit.log
+    maxSizeBytes: 52428800  # 50MB
+    keepDays: 90  # Extended retention for compliance
+
+telemetry:
+  enabled: true
+  sampleRate: 1.0
+  anonymize: false  # Non-anonymized for internal audit
+  # endpoint: https://internal-telemetry.company.com/collect
+
+healthCheck:
+  startupCheck: true
+  intervalMinutes: 60  # Regular health checks
+  components:
+    - grill
+    - subagent_router
+    - opus_model
+    - git_integration
+    - config
+    - audit_log
+    - compliance

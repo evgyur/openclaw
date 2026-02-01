@@ -1,0 +1,33 @@
+{
+  "phases": {
+    "research": {
+      "enabled": true,
+      "timeout": 300,
+      "model": "claude-sonnet-4"
+    },
+    "audit": {
+      "enabled": true,
+      "timeout": 300,
+      "model": "claude-sonnet-4"
+    },
+    "draft": {
+      "enabled": true,
+      "timeout": 600,
+      "model": "claude-sonnet-4",
+      "options_count": 3
+    },
+    "verify": {
+      "enabled": true,
+      "timeout": 300,
+      "model": "claude-sonnet-4"
+    }
+  },
+  "synthesis": {
+    "conflict_resolution": "auto",
+    "format": "markdown",
+    "include_reasoning": true
+  },
+  "parallel_limit": 4,
+  "retry_failed": true,
+  "auto_synthesize": true
+}

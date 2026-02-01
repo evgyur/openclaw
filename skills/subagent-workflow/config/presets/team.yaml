@@ -1,0 +1,101 @@
+# Team Configuration Preset
+# Balanced for small to medium teams
+
+version: "1.0.0"
+
+grill:
+  strictness: normal
+  focusAreas:
+    - security
+    - performance
+    - api
+    - tests
+    - style
+  requireTestsFor:
+    - "src/**/*.ts"
+    - "src/**/*.tsx"
+    - "!src/**/*.test.ts"
+    - "!src/**/*.test.tsx"
+    - "!src/**/index.ts"
+  autoApproveOwnPRs: false
+  maxReviewDepth: 3
+  failOnErrors: true
+  baseBranch: main
+
+useSubagents:
+  enabled: true
+  defaultWorkerCount: 4
+  maxParallel: 8
+  timeoutSeconds: 180
+  synthesisModel: sonnet
+  taskQueueSize: 20
+  workerRoles:
+    - research
+    - audit
+    - draft
+    - verify
+
+opusGuard:
+  enabled: true
+  riskThresholds:
+    message_send: 0.6
+    file_write: 0.7
+    file_delete: 0.9
+    exec_elevated: 0.8
+    exec_normal: 0.5
+    browser_sensitive: 0.5
+    api_call: 0.6
+  
+  # Balanced auto-approvals for team productivity
+  autoApprove:
+    - pattern: "write to /home/*/workspace/*"
+      confidence: 0.95
+    - pattern: "write to /workspace/*"
+      confidence: 0.95
+    - pattern: "edit /home/*/workspace/*"
+      confidence: 0.95
+    - pattern: "exec git *"
+      confidence: 0.9
+    - pattern: "exec npm *"
+      confidence: 0.9
+    - pattern: "exec pnpm *"
+      confidence: 0.9
+    - pattern: "exec bun *"
+      confidence: 0.9
+    - pattern: "exec node *"
+      confidence: 0.85
+    - pattern: "exec tsc *"
+      confidence: 0.95
+    - pattern: "exec eslint *"
+      confidence: 0.95
+    - pattern: "exec vitest *"
+      confidence: 0.9
+  
+  escalationChannel: team-security
+  
+  emergencyOverride:
+    enabled: true
+    requireConfirmation: true
+    timeoutSeconds: 60
+  
+  auditLog:
+    enabled: true
+    path: ~/.clawdbot/opus-guard-audit.log
+    maxSizeBytes: 10485760  # 10MB
+    keepDays: 30
+
+telemetry:
+  enabled: true
+  sampleRate: 0.5  # 50% sampling for teams
+  anonymize: true
+  # endpoint: optional team telemetry endpoint
+
+healthCheck:
+  startupCheck: true
+  intervalMinutes: 0  # Manual checks only
+  components:
+    - grill
+    - subagent_router
+    - opus_model
+    - git_integration
+    - config

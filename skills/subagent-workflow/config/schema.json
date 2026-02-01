@@ -1,0 +1,243 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/openclaw/openclaw/schemas/subagent-workflow",
+  "title": "Subagent Workflow Configuration",
+  "description": "Configuration for subagent execution, grilling, and safety guards",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema version identifier"
+    },
+    "version": {
+      "type": "string",
+      "description": "Config format version for migration support",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "grill": {
+      "type": "object",
+      "description": "Code review and quality gate settings",
+      "properties": {
+        "strictness": {
+          "type": "string",
+          "enum": ["lenient", "normal", "strict"],
+          "description": "How strict the grilling process is"
+        },
+        "focusAreas": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["security", "performance", "api", "tests", "style", "documentation"]
+          },
+          "uniqueItems": true,
+          "description": "Areas to focus grilling on"
+        },
+        "requireTestsFor": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true,
+          "description": "Glob patterns for files requiring tests (prefix with ! to exclude)"
+        },
+        "autoApproveOwnPRs": {
+          "type": "boolean",
+          "description": "Allow auto-approval of subagent's own PRs"
+        },
+        "maxReviewDepth": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3,
+          "description": "How many review iterations to perform"
+        },
+        "failOnErrors": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether grilling failures block execution"
+        }
+      }
+    },
+    "useSubagents": {
+      "type": "object",
+      "description": "Subagent execution settings",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable subagent delegation"
+        },
+        "defaultWorkerCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16,
+          "default": 4,
+          "description": "Default number of parallel subagents"
+        },
+        "maxParallel": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32,
+          "default": 8,
+          "description": "Maximum parallel subagents allowed"
+        },
+        "timeoutSeconds": {
+          "type": "integer",
+          "minimum": 30,
+          "maximum": 3600,
+          "default": 180,
+          "description": "Default timeout for subagent tasks"
+        },
+        "synthesisModel": {
+          "type": "string",
+          "default": "sonnet",
+          "description": "Model to use for synthesizing subagent results"
+        },
+        "taskQueueSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20,
+          "description": "Maximum queued tasks before throttling"
+        }
+      }
+    },
+    "opusGuard": {
+      "type": "object",
+      "description": "Safety and risk management settings",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable the OpusGuard safety layer"
+        },
+        "riskThresholds": {
+          "type": "object",
+          "description": "Risk thresholds for different actions",
+          "properties": {
+            "message_send": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.6,
+              "description": "Threshold for message actions"
+            },
+            "file_write": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.7,
+              "description": "Threshold for file writes"
+            },
+            "file_delete": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.9,
+              "description": "Threshold for file deletions"
+            },
+            "exec_elevated": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.8,
+              "description": "Threshold for elevated execution"
+            },
+            "exec_normal": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.5,
+              "description": "Threshold for normal execution"
+            },
+            "browser_sensitive": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.5,
+              "description": "Threshold for browser actions"
+            },
+            "api_call": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.6,
+              "description": "Threshold for API calls"
+            }
+          }
+        },
+        "autoApprove": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["pattern", "confidence"],
+            "properties": {
+              "pattern": {
+                "type": "string",
+                "description": "Glob pattern or regex to match"
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Confidence threshold for auto-approval"
+              }
+            }
+          },
+          "description": "Patterns that can be auto-approved"
+        },
+        "escalationChannel": {
+          "type": "string",
+          "default": "security-log",
+          "description": "Channel to send escalated events to"
+        },
+        "emergencyOverride": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "requireConfirmation": {
+              "type": "boolean",
+              "default": true
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "minimum": 10,
+              "maximum": 300,
+              "default": 60,
+              "description": "How long to wait for confirmation"
+            }
+          }
+        },
+        "auditLog": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "path": {
+              "type": "string",
+              "description": "Path to audit log file"
+            },
+            "maxSizeBytes": {
+              "type": "integer",
+              "minimum": 1024,
+              "description": "Maximum log size before rotation"
+            },
+            "keepDays": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 30,
+              "description": "How many days of logs to keep"
+            }
+          }
+        }
+      }
+    }
+  },
+  "required": ["version"],
+  "additionalProperties": false
+}

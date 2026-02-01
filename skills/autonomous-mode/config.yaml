@@ -1,0 +1,141 @@
+# Autonomous Coding Mode Configuration
+
+autonomous_mode:
+  # Master switch - set to false to disable all autonomous actions
+  enabled: true
+  
+  # Sensitivity level: aggressive | balanced | conservative
+  # - aggressive: Triggers more often, catches more potential issues
+  # - balanced: Reasonable defaults for most workflows
+  # - conservative: Only triggers on high-confidence scenarios
+  sensitivity: balanced
+  
+  # Silent mode - spawn subagents without asking
+  # Set to false to get confirmation prompts before spawning
+  silent_mode: true
+  
+  # How to present results after auto-triggering
+  # - summary: Brief one-liner about what was triggered
+  # - detailed: Full breakdown with reasoning
+  # - none: No output (fully silent)
+  present_results: summary
+
+  # Trigger thresholds per sensitivity level
+  triggers:
+    # Parallelization via use-subagents
+    parallelize:
+      aggressive:
+        complexity_threshold: 5        # 0-10 scale
+        impact_files_threshold: 3      # Number of files
+        uncertainty_threshold: 0.7     # Model confidence (lower = more uncertain)
+      balanced:
+        complexity_threshold: 7
+        impact_files_threshold: 5
+        uncertainty_threshold: 0.6
+      conservative:
+        complexity_threshold: 9
+        impact_files_threshold: 8
+        uncertainty_threshold: 0.5
+    
+    # Security gate via opus-guard
+    guard:
+      aggressive:
+        risk_levels: [medium, high, critical]
+        patterns:
+          - delete
+          - drop
+          - rm
+          - auth
+          - authentication
+          - password
+          - secret
+          - token
+          - payment
+          - billing
+          - sudo
+          - exec
+          - external
+      balanced:
+        risk_levels: [high, critical]
+        patterns:
+          - delete
+          - drop
+          - rm -rf
+          - sudo
+          - auth
+          - authentication
+          - password
+          - secret
+          - token
+          - payment
+          - billing
+      conservative:
+        risk_levels: [critical]
+        patterns:
+          - rm -rf /
+          - drop database
+          - drop table
+          - delete from
+    
+    # Code review via grill
+    grill:
+      aggressive:
+        min_files_changed: 2
+        operations: [refactor, implement, delete]
+      balanced:
+        min_files_changed: 3
+        operations: [refactor, implement]
+      conservative:
+        min_files_changed: 5
+        operations: [refactor]
+
+  # Override commands - disable autonomous mode for specific requests
+  override_keywords:
+    - skip guard
+    - no subagents
+    - disable autonomous
+    - manual mode
+    - skip autonomous
+
+  # Logging
+  logging:
+    enabled: true
+    log_path: ~/.clawdbot/logs/autonomous-mode.jsonl
+    log_decisions: true
+    log_triggers: true
+    retention_days: 30
+
+  # Graceful degradation
+  fallback:
+    on_subagent_failure: continue  # continue | halt | prompt
+    on_guard_timeout: prompt        # approve | deny | prompt
+    timeout_seconds: 30
+
+  # Integration with other skills
+  integrations:
+    use_subagents:
+      enabled: true
+      max_parallel: 4
+      phases: [research, audit, draft, verify]
+    
+    opus_guard:
+      enabled: true
+      model: claude-opus-4-5
+      confidence_threshold: 0.9
+    
+    grill:
+      enabled: true
+      auto_trigger_on_commit: true
+      strict_mode: false
+
+# Per-project overrides (optional)
+# Place a .autonomous.yaml in project root to override these settings
+project_overrides:
+  # Example: disable for specific operations
+  disable_for_operations: []
+  
+  # Example: require confirmation for high-risk
+  require_confirmation_for: [critical]
+  
+  # Example: custom patterns for this project
+  additional_patterns: []

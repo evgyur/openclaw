@@ -1,0 +1,75 @@
+{
+  "enabled": true,
+  "log_all_operations": true,
+  "log_level": "info",
+  "opus": {
+    "model": "claude-opus-4-5",
+    "timeout": 30,
+    "max_retries": 2
+  },
+  "risk_levels": {
+    "message:send": {
+      "low": { "confidence": 0.95, "auto_approve": true },
+      "medium": { "confidence": 0.85, "auto_approve": true },
+      "high": { "confidence": 0.90, "auto_approve": false, "require_opus": true }
+    },
+    "write": {
+      "low": { "confidence": 0.95, "auto_approve": true },
+      "medium": { "confidence": 0.90, "auto_approve": true },
+      "high": { "confidence": 0.90, "auto_approve": false, "require_opus": true }
+    },
+    "edit": {
+      "low": { "confidence": 0.95, "auto_approve": true },
+      "medium": { "confidence": 0.85, "auto_approve": false, "require_opus": true },
+      "high": { "confidence": 0.90, "auto_approve": false, "require_opus": true }
+    },
+    "exec": {
+      "low": { "confidence": 0.95, "auto_approve": true },
+      "medium": { "confidence": 0.80, "auto_approve": false, "require_opus": true },
+      "high": { "confidence": 0.90, "auto_approve": false, "require_opus": true }
+    }
+  },
+  "auto_approve": {
+    "trusted_patterns": [
+      "^git\\s+status$",
+      "^git\\s+diff",
+      "^git\\s+log",
+      "^ls\\s+",
+      "^cat\\s+.*\\.md$",
+      "^cat\\s+.*\\.json$",
+      "^cat\\s+.*\\.ts$",
+      "^find\\s+\\.\\s+",
+      "^grep\\s+",
+      "^head\\s+",
+      "^tail\\s+",
+      "^echo\\s+"
+    ],
+    "trusted_paths": [
+      "skills/*",
+      "docs/*",
+      "src/*",
+      "tests/*"
+    ]
+  },
+  "block_patterns": [
+    "rm\\s+-rf\\s+/",
+    "curl.*\\|.*bash",
+    "curl.*\\|.*sh",
+    "wget.*\\|.*bash",
+    ":\\(\\)\\s*\\{\\s*:\\|:\\s*&\\s*\\};\\s*:",
+    "mkfs\\.",
+    "dd\\s+if=.*of=/dev/"
+  ],
+  "channels": {
+    "telegram": {
+      "allow_broadcast": false,
+      "max_message_length": 4096,
+      "require_confirmation": true
+    },
+    "discord": {
+      "allow_broadcast": true,
+      "max_message_length": 2000,
+      "require_confirmation": false
+    }
+  }
+}

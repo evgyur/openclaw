@@ -1,0 +1,20 @@
+{
+  "name": "@openclaw/skill-use-subagents",
+  "version": "1.0.0",
+  "description": "Auto-parallelize complex tasks across specialized worker subagents",
+  "type": "module",
+  "main": "router.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest"
+  },
+  "keywords": [
+    "openclaw",
+    "skill",
+    "subagents",
+    "parallel",
+    "router"
+  ],
+  "author": "OpenClaw",
+  "license": "MIT"
+}

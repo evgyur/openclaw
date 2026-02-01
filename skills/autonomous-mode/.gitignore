@@ -1,0 +1,5 @@
+*.log
+*.jsonl
+.autonomous.yaml
+.DS_Store
+node_modules/

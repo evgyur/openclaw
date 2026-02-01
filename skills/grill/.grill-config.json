@@ -1,0 +1,54 @@
+{
+  "patterns": {
+    "must_fix": [
+      "eval\\(",
+      "dangerouslySetInnerHTML",
+      "process\\.env\\.[A-Z_]+ =",
+      "DROP TABLE",
+      "\\.innerHTML\\s*=",
+      "exec\\(",
+      "system\\(",
+      "SECURITY\\s*[\\[\\{]",
+      "password\\s*=\\s*[\"']\\w+[\"']",
+      "api[_-]?key\\s*=\\s*[\"']\\w+[\"']"
+    ],
+    "consider": [
+      "console\\.log\\(",
+      "debugger;",
+      "setTimeout\\(.*,\\s*0\\)",
+      "TODO:",
+      "FIXME:",
+      "HACK:",
+      "XXX:",
+      "@ts-ignore",
+      "eslint-disable",
+      "any\\s+as\\s+"
+    ],
+    "nit": [
+      "var\\s+",
+      "==\\s*[^=]",
+      "function\\s+\\w+\\s*\\("
+    ]
+  },
+  "ignore_paths": [
+    "dist/*",
+    "node_modules/*",
+    "*.generated.*",
+    "*.lock",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "*.min.js",
+    "*.bundle.js"
+  ],
+  "test_patterns": [
+    "*.test.ts",
+    "*.spec.ts",
+    "*.test.js",
+    "*.spec.js",
+    "__tests__/**",
+    "tests/**",
+    "test/**"
+  ],
+  "severity": "balanced",
+  "require_tests": true
+}

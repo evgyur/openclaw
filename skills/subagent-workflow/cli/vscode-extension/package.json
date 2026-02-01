@@ -1,0 +1,27 @@
+{
+  "name": "openclaw-subagent-snippets",
+  "displayName": "OpenClaw Subagent Snippets",
+  "description": "VS Code snippets for OpenClaw subagent workflow commands",
+  "version": "1.0.0",
+  "publisher": "openclaw",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": ["Snippets"],
+  "contributes": {
+    "snippets": [
+      {
+        "language": "typescript",
+        "path": "./snippets.json"
+      },
+      {
+        "language": "javascript",
+        "path": "./snippets.json"
+      },
+      {
+        "language": "shellscript",
+        "path": "./snippets.json"
+      }
+    ]
+  }
+}

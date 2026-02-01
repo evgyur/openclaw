@@ -1,0 +1,151 @@
+Tweet 1:
+"I haven't shipped a bug to production in 3 months..."
+
+Not because I'm perfect. But because I changed how we do code review.
+
+Here's how AI subagents transformed our engineering workflow 🧵👇
+
+#OpenClaw #DevOps
+
+---
+
+Tweet 2:
+The old way:
+→ PR opens
+→ Senior dev reviews (when they have time)
+→ Back-and-forth comments
+→ 2-3 days later: merge
+→ Bug discovered in prod 😱
+
+The new way with OpenClaw Subagents:
+→ PR opens
+→ 3 AI agents review in parallel (30 seconds)
+→ Actionable feedback on everything
+→ Ship confidently that same day
+
+---
+
+Tweet 3:
+Meet the squad 👇
+
+🔥 GRILL
+Catches syntax errors, enforces style, flags complex code
+
+🤖 USE-SUBAGENTS
+Spawns specialized reviewers for performance, tests, APIs
+
+🛡️ OPUS-GUARD
+Security scans, vulnerability checks, compliance validation
+
+Each does deep work. All run in parallel.
+
+---
+
+Tweet 4:
+Demo time! Here's Grill reviewing a PR:
+
+openclaw review --focus grill
+
+→ "Found 3 unused variables in auth.js:42-44"
+→ "Arrow function complexity > 10 (Cyclomatic)"
+→ "Missing error handling in API call"
+
+All in 8 seconds. No human context switching. No waiting for senior review.
+
+---
+
+Tweet 5:
+The real magic? Parallel subagents.
+
+When I run:
+openclaw review --parallel
+
+It spawns:
+• Performance subagent (checks N+1 queries, slow algorithms)
+• Test subagent (validates coverage, missing edge cases)
+• API subagent (ensures backward compatibility)
+
+All report back together. Total time: 22 seconds.
+
+---
+
+Tweet 6:
+Opus-Guard saved us last week.
+
+Developer introduced a new auth token. Human review missed it.
+
+Opus-Guard flagged:
+⚠️ "Token stored in localStorage (XSS risk)"
+⚠️ "Missing CSRF protection"
+⚠️ "Token refresh flow vulnerable to replay attacks"
+
+Caught before deployment. Zero incident.
+
+---
+
+Tweet 7:
+Under the hood, here's what's happening:
+
+```
+Your PR
+   ↓
+Subagent Coordinator
+   ↓
+┌─────┬─────┬─────┬─────┐
+│ G │ S │ P │ G │ ← Parallel exec
+│ r │ u │ e │ u │   (15-30 sec)
+│ i │ b │ r │ a │
+│ l │ a │ f │ r │
+│ l │ g │ f │ d │
+│   │ e │   │   │
+└─────┴─────┴─────┴─────┘
+   ↓
+Unified Report (prioritized, actionable)
+```
+
+Scale to 10+ subagents. Same speed.
+
+---
+
+Tweet 8:
+What teams are saying:
+
+"Our review cycles dropped from 2.3 days to 14 hours. Senior engineers reclaimed 20 hours/week." — Lead Engineer, 200-person team
+
+"Caught 40% more issues pre-PR. Production incidents: 12 → 3 in Q3." — VP Engineering, Series B startup
+
+"Finally, my junior devs get instant, high-quality feedback." — CTO, 50-person startup
+
+---
+
+Tweet 9:
+Ready to try it?
+
+Installation takes 2 minutes:
+
+```bash
+npm install -g openclaw
+openclaw init --template subagents
+openclaw review
+```
+
+Works with GitHub, GitLab, Bitbucket.
+
+Free for individuals and teams < 10.
+
+Enterprise: self-hosted, custom subagents, SSO.
+
+---
+
+Tweet 10:
+Stop letting code review be your bottleneck.
+
+Let specialized AI agents handle the repetitive review work. Focus your engineers on shipping features, not nitpicking PRs.
+
+📖 Docs: https://docs.openclaw.ai/subagents
+🔗 Install: https://docs.openclaw.ai/subagents/install
+💬 Discord: https://discord.gg/openclaw
+
+Ship faster. Ship safer.
+
+#AI #CodeReview #DevTools

@@ -1,0 +1,67 @@
+# Opus Guard Configuration
+
+# Risk thresholds for different operation types
+# Operations with risk score above these thresholds trigger Opus review
+risk_thresholds:
+  message_send: 0.6      # Sending messages (especially with attachments)
+  file_write: 0.7        # Writing/editing files outside workspace
+  exec_elevated: 0.8     # Exec with sudo, rm, curl, ssh, etc.
+  default: 0.5           # Default threshold for other tools
+
+# Auto-approve patterns
+# Operations matching these patterns are auto-approved if Opus confidence >= threshold
+auto_approve:
+  # Workspace file operations
+  - pattern: "write to /home/user/workspace/*"
+    confidence: 0.95
+  - pattern: "write to /workspace/*"
+    confidence: 0.95
+  - pattern: "edit /home/user/workspace/*"
+    confidence: 0.95
+  - pattern: "edit /workspace/*"
+    confidence: 0.95
+  
+  # Common development commands
+  - pattern: "exec git *"
+    confidence: 0.9
+  - pattern: "exec npm *"
+    confidence: 0.9
+  - pattern: "exec pnpm *"
+    confidence: 0.9
+  - pattern: "exec bun *"
+    confidence: 0.9
+  - pattern: "exec node *"
+    confidence: 0.85
+  
+  # Safe file reads
+  - pattern: "read /home/user/workspace/*"
+    confidence: 0.99
+  - pattern: "read /workspace/*"
+    confidence: 0.99
+  
+  # Browser navigation to known-safe sites
+  - pattern: "browser *github.com*"
+    confidence: 0.9
+  - pattern: "browser *docs.openclaw.ai*"
+    confidence: 0.95
+
+# Audit logging
+audit_log_path: "~/.clawdbot/opus-guard-audit.log"
+
+# Emergency bypass settings
+emergency_bypass:
+  # Whether to allow emergency bypass
+  enabled: true
+  # Require reason for bypass
+  require_reason: true
+  # Log bypass attempts
+  log_bypasses: true
+  
+# Opus reviewer settings
+opus:
+  # Model to use for security review
+  model: "claude-opus-4-5"
+  # Maximum tokens for review response
+  max_tokens: 1024
+  # Timeout for Opus review (ms)
+  timeout_ms: 10000

@@ -1,0 +1,76 @@
+{
+  "Spawn Review Subagent": {
+    "prefix": "spawn-review",
+    "description": "Spawn a critic subagent for code review",
+    "body": [
+      "openclaw agent spawn \\",
+      "  --label=critic \\",
+      "  --message=\"Review ${1:changes} for ${2:focus area}\" \\",
+      "  --context=\"git diff ${3:main}...HEAD\"$0"
+    ]
+  },
+  
+  "Use Parallel Subagents": {
+    "prefix": "use-subagents",
+    "description": "Parallelize task across worker subagents",
+    "body": [
+      "openclaw subagents \"${1:task description}\" \\",
+      "  --count ${2:4} \\",
+      "  --labels \"${3:worker-1,worker-2,worker-3,worker-4}\"$0"
+    ]
+  },
+  
+  "Guard Check": {
+    "prefix": "guard-check",
+    "description": "Check Opus Guard security log",
+    "body": [
+      "openclaw guard status --tail ${1:20}$0"
+    ]
+  },
+  
+  "Grill Quick Review": {
+    "prefix": "grill-quick",
+    "description": "Run quick pre-PR grill review",
+    "body": [
+      "openclaw grill --quick${1: --focus ${2|security,performance,api|}}$0"
+    ]
+  },
+  
+  "Grill Strict Review": {
+    "prefix": "grill-strict",
+    "description": "Run strict grill review (fails on CONSIDER items)",
+    "body": [
+      "openclaw grill ${1:main} --strict --focus ${2|security,performance,api|}$0"
+    ]
+  },
+  
+  "Spawn Worker Pool": {
+    "prefix": "spawn-workers",
+    "description": "Spawn a pool of worker subagents for parallel processing",
+    "body": [
+      "# Spawn ${1:4} workers for parallel task execution",
+      "openclaw subagents \"${2:Process batch items}\" --count ${1:4}$0"
+    ]
+  },
+  
+  "Grill with Custom Focus": {
+    "prefix": "grill-focus",
+    "description": "Run grill review with custom focus area",
+    "body": [
+      "openclaw grill ${1:target-branch} \\",
+      "  --focus ${2|security,performance,api|} \\",
+      "  ${3:--strict}$0"
+    ]
+  },
+  
+  "Agent Spawn Template": {
+    "prefix": "agent-spawn",
+    "description": "Generic subagent spawn command",
+    "body": [
+      "openclaw agent spawn \\",
+      "  --label=${1:agent-label} \\",
+      "  --message=\"${2:task description}\" \\",
+      "  ${3:--context=\"${4:context data}\"}$0"
+    ]
+  }
+}

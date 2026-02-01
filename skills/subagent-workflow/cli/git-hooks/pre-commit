@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# Pre-commit hook: Run quick grill review before commit
+# Install: ln -sf ../../skills/subagent-workflow/cli/git-hooks/pre-commit .git/hooks/pre-commit
+
+set -e
+
+# Configuration
+GRILL_ENABLED=${OPENCLAW_GRILL_PRECOMMIT:-true}
+GRILL_STRICT=${OPENCLAW_GRILL_STRICT:-false}
+
+if [[ "$GRILL_ENABLED" != "true" ]]; then
+    echo "⏭️  Skipping grill (OPENCLAW_GRILL_PRECOMMIT=false)"
+    exit 0
+fi
+
+# Check if openclaw is available
+if ! command -v openclaw &> /dev/null; then
+    echo "⚠️  openclaw not found in PATH, skipping grill"
+    exit 0
+fi
+
+echo "🔥 Running quick grill review..."
+
+# Get the current branch
+current_branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "HEAD")
+
+# Build grill command
+grill_cmd="openclaw grill --quick"
+
+if [[ "$GRILL_STRICT" == "true" ]]; then
+    grill_cmd="$grill_cmd --strict"
+fi
+
+# Run grill on staged changes
+if ! git diff --cached --quiet; then
+    # Create a temporary file with the staged diff
+    staged_diff=$(git diff --cached)
+    
+    if [[ -n "$staged_diff" ]]; then
+        echo "Reviewing staged changes..."
+        
+        # Run grill with staged diff context
+        if $grill_cmd 2>&1 | tee /tmp/grill-output.txt; then
+            echo "✅ Grill passed"
+        else
+            echo ""
+            echo "❌ Grill found issues. Review output above."
+            echo ""
+            echo "To bypass: git commit --no-verify"
+            echo "To disable: export OPENCLAW_GRILL_PRECOMMIT=false"
+            exit 1
+        fi
+    fi
+else
+    echo "No staged changes to review"
+fi
+
+exit 0

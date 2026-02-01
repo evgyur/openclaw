@@ -1,0 +1,144 @@
+# Subagent Workflow Configuration Defaults
+# Copy to ~/.clawdbot/subagent-workflow.yaml to customize
+
+# Config format version
+version: "1.0.0"
+
+# Grill - Code Review Settings
+grill:
+  # Strictness level: lenient | normal | strict
+  strictness: normal
+  
+  # Focus areas for review
+  focusAreas:
+    - security
+    - performance
+    - api
+    - tests
+  
+  # Files requiring tests (glob patterns)
+  requireTestsFor:
+    - "src/**/*.ts"
+    - "!src/**/*.d.ts"
+    - "!src/**/index.ts"
+  
+  # Auto-approve subagent PRs (CI use)
+  autoApproveOwnPRs: false
+  
+  # Maximum review iterations
+  maxReviewDepth: 3
+  
+  # Fail on errors
+  failOnErrors: true
+  
+  # Base branch for comparison
+  baseBranch: main
+
+# Use Subagents - Parallel Task Settings
+useSubagents:
+  # Enable subagent delegation
+  enabled: true
+  
+  # Default number of parallel workers
+  defaultWorkerCount: 4
+  
+  # Maximum parallel subagents
+  maxParallel: 8
+  
+  # Default timeout (seconds)
+  timeoutSeconds: 180
+  
+  # Model for synthesis
+  synthesisModel: sonnet
+  
+  # Maximum queued tasks
+  taskQueueSize: 20
+  
+  # Worker roles to spawn
+  workerRoles:
+    - research
+    - audit
+    - draft
+    - verify
+
+# Opus Guard - Safety Settings
+opusGuard:
+  # Enable the safety layer
+  enabled: true
+  
+  # Risk thresholds (0.0 - 1.0)
+  riskThresholds:
+    message_send: 0.6
+    file_write: 0.7
+    file_delete: 0.9
+    exec_elevated: 0.8
+    exec_normal: 0.5
+    browser_sensitive: 0.5
+    api_call: 0.6
+  
+  # Auto-approve patterns
+  autoApprove:
+    - pattern: "write to /home/*/workspace/*"
+      confidence: 0.95
+    - pattern: "write to /workspace/*"
+      confidence: 0.95
+    - pattern: "edit /home/*/workspace/*"
+      confidence: 0.95
+    - pattern: "exec git *"
+      confidence: 0.9
+    - pattern: "exec npm *"
+      confidence: 0.9
+    - pattern: "exec pnpm *"
+      confidence: 0.9
+    - pattern: "exec bun *"
+      confidence: 0.9
+    - pattern: "exec node *"
+      confidence: 0.85
+    - pattern: "exec tsc *"
+      confidence: 0.95
+  
+  # Escalation channel
+  escalationChannel: security-log
+  
+  # Emergency override settings
+  emergencyOverride:
+    enabled: true
+    requireConfirmation: true
+    timeoutSeconds: 60
+  
+  # Audit log settings
+  auditLog:
+    enabled: true
+    path: ~/.clawdbot/opus-guard-audit.log
+    maxSizeBytes: 10485760  # 10MB
+    keepDays: 30
+
+# Telemetry Settings
+telemetry:
+  # Enable usage metrics (opt-in, anonymized)
+  enabled: true
+  
+  # Sample rate (1.0 = 100%)
+  sampleRate: 1.0
+  
+  # Anonymize data
+  anonymize: true
+  
+  # Custom endpoint (optional)
+  # endpoint: https://telemetry.example.com/collect
+
+# Health Check Settings
+healthCheck:
+  # Run health checks on startup
+  startupCheck: true
+  
+  # Health check interval (minutes, 0 to disable)
+  intervalMinutes: 0
+  
+  # Components to check
+  components:
+    - grill
+    - subagent_router
+    - opus_model
+    - git_integration
+    - config

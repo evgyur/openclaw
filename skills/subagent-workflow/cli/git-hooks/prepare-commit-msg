@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Prepare-commit-msg hook: Suggest fixes for MUST_FIX items
+# Install: ln -sf ../../skills/subagent-workflow/cli/git-hooks/prepare-commit-msg .git/hooks/prepare-commit-msg
+
+set -e
+
+COMMIT_MSG_FILE=$1
+COMMIT_SOURCE=$2
+SHA1=$3
+
+# Skip if this is an amended, merge, or squash commit
+if [[ "$COMMIT_SOURCE" == "merge" ]] || [[ "$COMMIT_SOURCE" == "squash" ]]; then
+    exit 0
+fi
+
+# Configuration
+SUGGEST_FIXES=${OPENCLAW_SUGGEST_FIXES:-true}
+
+if [[ "$SUGGEST_FIXES" != "true" ]]; then
+    exit 0
+fi
+
+# Check for grill output from pre-commit hook
+if [[ -f /tmp/grill-output.txt ]]; then
+    grill_output=$(cat /tmp/grill-output.txt)
+    
+    # Check for MUST_FIX items
+    if echo "$grill_output" | grep -q "MUST_FIX:"; then
+        echo "" >> "$COMMIT_MSG_FILE"
+        echo "# ⚠️  Grill found MUST_FIX items:" >> "$COMMIT_MSG_FILE"
+        echo "#" >> "$COMMIT_MSG_FILE"
+        
+        # Extract and append MUST_FIX lines
+        echo "$grill_output" | grep "MUST_FIX:" | while IFS= read -r line; do
+            echo "# $line" >> "$COMMIT_MSG_FILE"
+        done
+        
+        echo "#" >> "$COMMIT_MSG_FILE"
+        echo "# Consider addressing these issues before committing." >> "$COMMIT_MSG_FILE"
+        echo "# To disable suggestions: export OPENCLAW_SUGGEST_FIXES=false" >> "$COMMIT_MSG_FILE"
+    fi
+    
+    # Check for CONSIDER items
+    if echo "$grill_output" | grep -q "CONSIDER:"; then
+        if ! grep -q "MUST_FIX:" <<< "$grill_output"; then
+            echo "" >> "$COMMIT_MSG_FILE"
+            echo "# 💡 Grill suggestions:" >> "$COMMIT_MSG_FILE"
+            echo "#" >> "$COMMIT_MSG_FILE"
+        fi
+        
+        # Extract and append CONSIDER lines (limit to first 5)
+        echo "$grill_output" | grep "CONSIDER:" | head -n 5 | while IFS= read -r line; do
+            echo "# $line" >> "$COMMIT_MSG_FILE"
+        done
+    fi
+    
+    # Clean up temporary file
+    rm -f /tmp/grill-output.txt
+fi
+
+exit 0

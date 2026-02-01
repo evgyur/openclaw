@@ -1,0 +1,92 @@
+# Maximum Paranoia Configuration Preset
+# Aggressive security at the cost of convenience
+
+version: "1.0.0"
+
+grill:
+  strictness: strict
+  focusAreas:
+    - security
+    - performance
+    - api
+    - tests
+    - documentation
+    - style
+  requireTestsFor:
+    - "src/**/*"
+    - "lib/**/*"
+    - "app/**/*"
+    - "!**/*.d.ts"
+    - "!**/vendor/**"
+    - "!**/node_modules/**"
+  autoApproveOwnPRs: false
+  maxReviewDepth: 10  # Maximum depth
+  failOnErrors: true
+  baseBranch: main
+
+useSubagents:
+  enabled: true
+  defaultWorkerCount: 6  # More reviewers for safety
+  maxParallel: 12
+  timeoutSeconds: 600  # Longer timeout for thoroughness
+  synthesisModel: opus  # Always use best model
+  taskQueueSize: 20
+  workerRoles:
+    - research
+    - audit
+    - draft
+    - verify
+    - compliance
+    - security  # Dedicated security worker
+
+opusGuard:
+  enabled: true
+  # Ultra-conservative thresholds
+  riskThresholds:
+    message_send: 0.3
+    file_write: 0.4
+    file_delete: 0.5
+    exec_elevated: 0.4
+    exec_normal: 0.3
+    browser_sensitive: 0.3
+    api_call: 0.4
+  
+  # Almost no auto-approvals
+  autoApprove:
+    - pattern: "exec git status"
+      confidence: 0.99
+    - pattern: "exec git log --oneline -10"
+      confidence: 0.99
+    - pattern: "exec git branch"
+      confidence: 0.99
+    - pattern: "read *"
+      confidence: 0.95
+  
+  escalationChannel: security-critical
+  
+  emergencyOverride:
+    enabled: false  # Disabled - no bypasses
+  
+  auditLog:
+    enabled: true
+    path: ~/.clawdbot/opus-guard-audit.log
+    maxSizeBytes: 104857600  # 100MB
+    keepDays: 365  # Full year retention
+
+telemetry:
+  enabled: true
+  sampleRate: 1.0  # All events
+  anonymize: false  # Full attribution
+
+healthCheck:
+  startupCheck: true
+  intervalMinutes: 15  # Very frequent
+  components:
+    - grill
+    - subagent_router
+    - opus_model
+    - git_integration
+    - config
+    - audit_log
+    - security
+    - compliance

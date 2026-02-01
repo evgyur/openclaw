@@ -1,0 +1,89 @@
+# Solo Developer Configuration Preset
+# Lightweight, fast, minimal friction for individual work
+
+version: "1.0.0"
+
+grill:
+  strictness: lenient
+  focusAreas:
+    - security
+    - tests
+  requireTestsFor:
+    - "src/**/*.ts"
+    - "!src/**/*.test.ts"
+  autoApproveOwnPRs: true  # Convenience for solo work
+  maxReviewDepth: 2
+  failOnErrors: false  # Non-blocking
+  baseBranch: main
+
+useSubagents:
+  enabled: true
+  defaultWorkerCount: 2  # Fewer workers for lower cost
+  maxParallel: 4
+  timeoutSeconds: 120  # Faster timeout
+  synthesisModel: sonnet  # Faster than opus
+  taskQueueSize: 10
+  workerRoles:
+    - research
+    - draft  # Streamlined: skip audit and verify for speed
+
+opusGuard:
+  enabled: true
+  riskThresholds:
+    message_send: 0.7
+    file_write: 0.8
+    file_delete: 0.95
+    exec_elevated: 0.9
+    exec_normal: 0.6
+    browser_sensitive: 0.6
+    api_call: 0.7
+  
+  # More auto-approvals for solo productivity
+  autoApprove:
+    - pattern: "write to *"
+      confidence: 0.9
+    - pattern: "edit *"
+      confidence: 0.9
+    - pattern: "exec git *"
+      confidence: 0.95
+    - pattern: "exec npm *"
+      confidence: 0.95
+    - pattern: "exec pnpm *"
+      confidence: 0.95
+    - pattern: "exec bun *"
+      confidence: 0.95
+    - pattern: "exec node *"
+      confidence: 0.9
+    - pattern: "exec tsc *"
+      confidence: 0.95
+    - pattern: "exec eslint *"
+      confidence: 0.95
+    - pattern: "exec prettier *"
+      confidence: 0.95
+    - pattern: "exec vitest *"
+      confidence: 0.95
+  
+  escalationChannel: security-log
+  
+  emergencyOverride:
+    enabled: true
+    requireConfirmation: false  # Faster for solo work
+    timeoutSeconds: 30
+  
+  auditLog:
+    enabled: true
+    path: ~/.clawdbot/opus-guard-audit.log
+    maxSizeBytes: 5242880  # 5MB
+    keepDays: 7  # Short retention
+
+telemetry:
+  enabled: false  # Disabled for privacy
+  sampleRate: 0.0
+  anonymize: true
+
+healthCheck:
+  startupCheck: false  # Skip for faster startup
+  intervalMinutes: 0  # Disabled
+  components:
+    - grill
+    - subagent_router
