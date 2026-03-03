@@ -138,7 +138,7 @@ export type API = {
       cookies: unknown[];
     };
   };
-  fetchAccountInfo(): Promise<{ profile: User } | User>;
+  fetchAccountInfo(): Promise<{ profile: User }>;
   getAllFriends(): Promise<User[]>;
   getOwnId(): string;
   getAllGroups(): Promise<{

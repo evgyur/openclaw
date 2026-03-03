@@ -170,6 +170,25 @@ describe("zalouser monitor group mention gating", () => {
     expect(sendTypingZalouserMock).not.toHaveBeenCalled();
   });
 
+  it("fails closed when requireMention=true but mention detection is unavailable", async () => {
+    const { dispatchReplyWithBufferedBlockDispatcher } = installRuntime({
+      commandAuthorized: false,
+    });
+    await __testing.processMessage({
+      message: createGroupMessage({
+        canResolveExplicitMention: false,
+        hasAnyMention: false,
+        wasExplicitlyMentioned: false,
+      }),
+      account: createAccount(),
+      config: createConfig(),
+      runtime: createRuntimeEnv(),
+    });
+
+    expect(dispatchReplyWithBufferedBlockDispatcher).not.toHaveBeenCalled();
+    expect(sendTypingZalouserMock).not.toHaveBeenCalled();
+  });
+
   it("dispatches explicitly-mentioned group messages and marks WasMentioned", async () => {
     const { dispatchReplyWithBufferedBlockDispatcher } = installRuntime({
       commandAuthorized: false,
