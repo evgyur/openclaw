@@ -463,20 +463,23 @@ jobs:
           OPENCLAW_CHANGED_EXTENSION: ${{ matrix.extension }}
         run: |
           set -euo pipefail
-          plan_json="$(node scripts/test-extension.mjs "$OPENCLAW_CHANGED_EXTENSION" --allow-empty --dry-run --json)"
+          plan_json="$(node scripts/test-extension.mjs "$OPENCLAW_CHANGED_EXTENSION" --allow-empty --max-tests 1 --dry-run --json)"
           config="$(printf '%s' "$plan_json" | jq -r '.config')"
           roots="$(printf '%s' "$plan_json" | jq -r '.roots | join(", ")')"
-          tests="$(printf '%s' "$plan_json" | jq -r '.testFiles | length')"
+          tests="$(printf '%s' "$plan_json" | jq -r '(.selectedTestFiles // .testFiles | length)')"
+          total_tests="$(printf '%s' "$plan_json" | jq -r '.testFiles | length')"
           {
             echo "config=$config"
             echo "tests=$tests"
+            echo "total_tests=$total_tests"
           } >> "$GITHUB_OUTPUT"
-          echo "extension-fast plan: config=$config tests=$tests roots=$roots"
+          echo "extension-fast plan: config=$config selected-tests=$tests total-tests=$total_tests roots=$roots"
           {
             echo "### extension-fast (${OPENCLAW_CHANGED_EXTENSION}) plan"
             echo "- config: \`$config\`"
             echo "- roots: \`$roots\`"
-            echo "- test files: \`$tests\`"
+            echo "- selected test files: \`$tests\`"
+            echo "- total test files: \`$total_tests\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run changed extension tests (timed)
@@ -484,11 +487,12 @@ jobs:
           OPENCLAW_CHANGED_EXTENSION: ${{ matrix.extension }}
           PLAN_CONFIG: ${{ steps.plan.outputs.config }}
           PLAN_TESTS: ${{ steps.plan.outputs.tests }}
+          PLAN_TOTAL_TESTS: ${{ steps.plan.outputs.total_tests }}
         run: |
           set -euo pipefail
           test_start="$(date +%s)"
           set +e
-          pnpm test:extension "$OPENCLAW_CHANGED_EXTENSION" --allow-empty -- --pool=forks --maxWorkers=1 --bail=1
+          pnpm test:extension "$OPENCLAW_CHANGED_EXTENSION" --allow-empty --max-tests 1 -- --pool=forks --maxWorkers=1 --bail=1
           test_status=$?
           set -e
           test_end="$(date +%s)"
@@ -503,6 +507,7 @@ jobs:
             --arg extension "$OPENCLAW_CHANGED_EXTENSION" \
             --arg config "${PLAN_CONFIG:-unknown}" \
             --argjson tests "${PLAN_TESTS:-0}" \
+            --argjson totalTests "${PLAN_TOTAL_TESTS:-0}" \
             --arg runId "$GITHUB_RUN_ID" \
             --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
             --arg sha "$GITHUB_SHA" \
@@ -513,6 +518,7 @@ jobs:
               extension: $extension,
               config: $config,
               tests: $tests,
+              totalTests: $totalTests,
               runId: $runId,
               runAttempt: $runAttempt,
               sha: $sha,
@@ -521,11 +527,12 @@ jobs:
               durationSeconds: $durationSeconds
             }' > "$metrics_json"
 
-          printf "extension\tconfig\ttests\tstatus\tduration_seconds\trun_id\trun_attempt\tsha\tref\n" > "$metrics_tsv"
-          printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
+          printf "extension\tconfig\ttests\ttotal_tests\tstatus\tduration_seconds\trun_id\trun_attempt\tsha\tref\n" > "$metrics_tsv"
+          printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
             "$OPENCLAW_CHANGED_EXTENSION" \
             "${PLAN_CONFIG:-unknown}" \
             "${PLAN_TESTS:-0}" \
+            "${PLAN_TOTAL_TESTS:-0}" \
             "$test_status" \
             "$test_duration" \
             "$GITHUB_RUN_ID" \
@@ -538,6 +545,8 @@ jobs:
             echo "### extension-fast (${OPENCLAW_CHANGED_EXTENSION}) runtime"
             echo "- duration: ${test_duration}s"
             echo "- exit code: ${test_status}"
+            echo "- selected tests: ${PLAN_TESTS:-0}"
+            echo "- total tests: ${PLAN_TOTAL_TESTS:-0}"
             echo "- metrics json: \`${metrics_json}\`"
             echo "- metrics tsv: \`${metrics_tsv}\`"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -580,8 +589,8 @@ jobs:
           const slaMaxSeconds = 1500;
 
           if (!existsSync(metricsDir)) {
-            console.log("::warning::No extension-fast timing artifacts found.");
-            process.exit(0);
+            console.error("::error::No extension-fast timing artifacts found.");
+            process.exit(1);
           }
 
           const rows = readdirSync(metricsDir)
@@ -593,8 +602,8 @@ jobs:
             .filter((row) => typeof row.durationSeconds === "number");
 
           if (rows.length === 0) {
-            console.log("::warning::No extension-fast timing JSON rows were found.");
-            process.exit(0);
+            console.error("::error::No extension-fast timing JSON rows were found.");
+            process.exit(1);
           }
 
           const durations = rows.map((row) => row.durationSeconds).toSorted((a, b) => a - b);
@@ -615,12 +624,13 @@ jobs:
           writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`, "utf8");
 
           const tsvLines = [
-            "extension\tconfig\ttests\tstatus\tduration_seconds\trun_id\trun_attempt\tsha\tref",
+            "extension\tconfig\ttests\ttotal_tests\tstatus\tduration_seconds\trun_id\trun_attempt\tsha\tref",
             ...rows.map((row) =>
               [
                 row.extension,
                 row.config,
                 row.tests,
+                row.totalTests ?? 0,
                 row.status,
                 row.durationSeconds,
                 row.runId,
@@ -640,26 +650,36 @@ jobs:
             `- p95: \`${p95}s\``,
             `- max: \`${max}s\``,
             "",
-            "| extension | config | tests | status | duration (s) |",
-            "| --- | --- | ---: | ---: | ---: |",
+            "| extension | config | selected tests | total tests | status | duration (s) |",
+            "| --- | --- | ---: | ---: | ---: | ---: |",
             ...rows
               .toSorted((a, b) => b.durationSeconds - a.durationSeconds)
               .map(
                 (row) =>
-                  `| ${row.extension} | ${row.config} | ${row.tests} | ${row.status} | ${row.durationSeconds} |`,
+                  `| ${row.extension} | ${row.config} | ${row.tests} | ${row.totalTests ?? 0} | ${row.status} | ${row.durationSeconds} |`,
               ),
           ].join("\n");
           writeFileSync(process.env.GITHUB_STEP_SUMMARY, `${markdown}\n`, { flag: "a" });
 
+          let failedSla = false;
+          if (failed > 0) {
+            console.error(`::error::extension-fast contains ${failed} failing lanes.`);
+            failedSla = true;
+          }
           if (p95 > slaP95Seconds) {
-            console.log(
-              `::warning::extension-fast p95 ${p95}s exceeds SLA target ${slaP95Seconds}s.`,
+            console.error(
+              `::error::extension-fast p95 ${p95}s exceeds SLA target ${slaP95Seconds}s.`,
             );
+            failedSla = true;
           }
           if (max > slaMaxSeconds) {
-            console.log(
-              `::warning::extension-fast max ${max}s exceeds SLA ceiling ${slaMaxSeconds}s.`,
+            console.error(
+              `::error::extension-fast max ${max}s exceeds SLA ceiling ${slaMaxSeconds}s.`,
             );
+            failedSla = true;
+          }
+          if (failedSla) {
+            process.exit(1);
           }
           EOF
 

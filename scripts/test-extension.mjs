@@ -182,6 +182,7 @@ function printUsage() {
   console.error("Usage: pnpm test:extension <extension-name|path> [vitest args...]");
   console.error("       node scripts/test-extension.mjs [extension-name|path] [vitest args...]");
   console.error("       node scripts/test-extension.mjs <extension-name|path> --allow-empty");
+  console.error("       node scripts/test-extension.mjs <extension-name|path> --max-tests <count>");
   console.error("       node scripts/test-extension.mjs --list");
   console.error(
     "       node scripts/test-extension.mjs --list-changed --base <git-ref> [--head <git-ref>]",
@@ -190,20 +191,55 @@ function printUsage() {
 
 async function run() {
   const rawArgs = process.argv.slice(2);
-  const dryRun = rawArgs.includes("--dry-run");
-  const json = rawArgs.includes("--json");
-  const allowEmpty = rawArgs.includes("--allow-empty");
-  const list = rawArgs.includes("--list");
-  const listChanged = rawArgs.includes("--list-changed");
-  const args = rawArgs.filter(
-    (arg) =>
-      arg !== "--" &&
-      arg !== "--dry-run" &&
-      arg !== "--json" &&
-      arg !== "--allow-empty" &&
-      arg !== "--list" &&
-      arg !== "--list-changed",
-  );
+  let dryRun = false;
+  let json = false;
+  let allowEmpty = false;
+  let list = false;
+  let listChanged = false;
+  let maxTests;
+  const args = [];
+
+  for (let index = 0; index < rawArgs.length; index += 1) {
+    const arg = rawArgs[index];
+
+    if (arg === "--") {
+      continue;
+    }
+    if (arg === "--dry-run") {
+      dryRun = true;
+      continue;
+    }
+    if (arg === "--json") {
+      json = true;
+      continue;
+    }
+    if (arg === "--allow-empty") {
+      allowEmpty = true;
+      continue;
+    }
+    if (arg === "--list") {
+      list = true;
+      continue;
+    }
+    if (arg === "--list-changed") {
+      listChanged = true;
+      continue;
+    }
+    if (arg === "--max-tests") {
+      const value = rawArgs[index + 1];
+      const parsed = Number.parseInt(String(value ?? ""), 10);
+      if (!Number.isInteger(parsed) || parsed <= 0) {
+        printUsage();
+        console.error(`Invalid --max-tests value "${value ?? ""}". Expected a positive integer.`);
+        process.exit(1);
+      }
+      maxTests = parsed;
+      index += 1;
+      continue;
+    }
+
+    args.push(arg);
+  }
 
   let base = "";
   let head = "HEAD";
@@ -274,14 +310,22 @@ async function run() {
     process.exit(1);
   }
 
-  if (plan.testFiles.length === 0 && !allowEmpty) {
+  const selectedTestFiles =
+    typeof maxTests === "number" ? plan.testFiles.slice(0, maxTests) : [...plan.testFiles];
+  const outputPlan = {
+    ...plan,
+    maxTests,
+    selectedTestFiles,
+  };
+
+  if (selectedTestFiles.length === 0 && !allowEmpty) {
     console.error(
       `No tests found for ${plan.extensionDir}. Run "pnpm test:extension ${plan.extensionId} -- --dry-run" to inspect the resolved roots.`,
     );
     process.exit(1);
   }
 
-  if (plan.testFiles.length === 0 && allowEmpty && !dryRun) {
+  if (selectedTestFiles.length === 0 && allowEmpty && !dryRun) {
     const message = `[test-extension] Skipping ${plan.extensionId}: no test files were found under ${plan.roots.join(", ")}`;
     console.warn(message);
     if (process.env.GITHUB_ACTIONS === "true") {
@@ -292,23 +336,23 @@ async function run() {
 
   if (dryRun) {
     if (json) {
-      process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
+      process.stdout.write(`${JSON.stringify(outputPlan, null, 2)}\n`);
     } else {
       console.log(`[test-extension] ${plan.extensionId}`);
       console.log(`config: ${plan.config}`);
       console.log(`roots: ${plan.roots.join(", ")}`);
-      console.log(`tests: ${plan.testFiles.length}`);
+      console.log(`tests: ${selectedTestFiles.length}`);
     }
     return;
   }
 
   console.log(
-    `[test-extension] Running ${plan.testFiles.length} test files for ${plan.extensionId} with ${plan.config}`,
+    `[test-extension] Running ${selectedTestFiles.length} test files for ${plan.extensionId} with ${plan.config}`,
   );
 
   const child = spawn(
     pnpm,
-    ["exec", "vitest", "run", "--config", plan.config, ...plan.testFiles, ...passthroughArgs],
+    ["exec", "vitest", "run", "--config", plan.config, ...selectedTestFiles, ...passthroughArgs],
     {
       cwd: repoRoot,
       stdio: "inherit",
