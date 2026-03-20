@@ -122,17 +122,17 @@ export const __testing = {
   },
 };
 
-function shouldAttachDeviceIdentityForGatewayCall(params: {
-  url: string;
-  token?: string;
-  password?: string;
-}): boolean {
-  void params;
-  // Shared-auth local calls used to skip device identity as an optimization, but
-  // device-less operator connects now have their self-declared scopes stripped.
-  // Keep identity enabled so local authenticated calls stay device-bound and
-  // retain their least-privilege scopes.
-  return true;
+function resolveDeviceIdentityForGatewayCall(): ReturnType<typeof loadOrCreateDeviceIdentity> | null {
+  // Shared-auth local calls should still stay device-bound so operator scopes
+  // remain available for detail RPCs such as status / system-presence /
+  // last-heartbeat.
+  try {
+    return loadOrCreateDeviceIdentity();
+  } catch {
+    // Read-only or restricted environments should still be able to call the
+    // gateway with token/password auth without crashing before the RPC.
+    return null;
+  }
 }
 
 export type ExplicitGatewayAuth = {
@@ -868,9 +868,7 @@ async function executeGatewayRequestWithScopes<T>(params: {
       mode: opts.mode ?? GATEWAY_CLIENT_MODES.CLI,
       role: "operator",
       scopes,
-      deviceIdentity: shouldAttachDeviceIdentityForGatewayCall({ url, token, password })
-        ? loadOrCreateDeviceIdentity()
-        : undefined,
+      deviceIdentity: resolveDeviceIdentityForGatewayCall(),
       minProtocol: opts.minProtocol ?? PROTOCOL_VERSION,
       maxProtocol: opts.maxProtocol ?? PROTOCOL_VERSION,
       onHelloOk: async (hello) => {
