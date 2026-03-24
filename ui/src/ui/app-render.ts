@@ -5,7 +5,7 @@ import {
 } from "../../../src/routing/session-key.js";
 import { t } from "../i18n/index.ts";
 import { getSafeLocalStorage } from "../local-storage.ts";
-import { refreshChatAvatar } from "./app-chat.ts";
+import { refreshChatAvatar, setChatAttachments, setChatDraft } from "./app-chat.ts";
 import { renderUsageTab } from "./app-render-usage-tab.ts";
 import {
   renderChatControls,
@@ -82,7 +82,6 @@ import { buildExternalLinkRel, EXTERNAL_LINK_TARGET } from "./external-link.ts";
 import "./components/dashboard-header.ts";
 import { icons } from "./icons.ts";
 import { normalizeBasePath, TAB_GROUPS, subtitleForTab, titleForTab } from "./navigation.ts";
-import { persistChatAttachments, persistChatDraft } from "./storage.ts";
 import { agentLogoUrl } from "./views/agents-utils.ts";
 import {
   resolveAgentConfig,
@@ -1386,23 +1385,7 @@ export function renderApp(state: AppViewState) {
             ? renderChat({
                 sessionKey: state.sessionKey,
                 onSessionKeyChange: (next) => {
-                  state.sessionKey = next;
-                  state.chatMessage = "";
-                  state.chatAttachments = [];
-                  state.chatStream = null;
-                  state.chatStreamStartedAt = null;
-                  state.chatRunId = null;
-                  state.chatQueue = [];
-                  state.resetToolStream();
-                  state.resetChatScroll();
-                  state.applySettings({
-                    ...state.settings,
-                    sessionKey: next,
-                    lastActiveSessionKey: next,
-                  });
-                  void state.loadAssistantIdentity();
-                  void loadChatHistory(state);
-                  void refreshChatAvatar(state);
+                  switchChatSession(state, next);
                 },
                 thinkingLevel: state.chatThinkingLevel,
                 showThinking,
@@ -1440,18 +1423,15 @@ export function renderApp(state: AppViewState) {
                 },
                 onChatScroll: (event) => state.handleChatScroll(event),
                 getDraft: () => state.chatMessage,
-                onDraftChange: (next) => {
-                  state.chatMessage = next;
-                  // Persist draft to sessionStorage for recovery after refresh
-                  persistChatDraft(state.sessionKey, next);
-                },
+                onDraftChange: (next) =>
+                  setChatDraft(state as unknown as Parameters<typeof setChatDraft>[0], next),
                 onRequestUpdate: requestHostUpdate,
                 attachments: state.chatAttachments,
-                onAttachmentsChange: (next) => {
-                  state.chatAttachments = next;
-                  // Persist attachments to sessionStorage for recovery after refresh
-                  persistChatAttachments(state.sessionKey, next);
-                },
+                onAttachmentsChange: (next) =>
+                  setChatAttachments(
+                    state as unknown as Parameters<typeof setChatAttachments>[0],
+                    next,
+                  ),
                 onSend: () => state.handleSendChat(),
                 canAbort: Boolean(state.chatRunId),
                 onAbort: () => void state.handleAbortChat(),
@@ -1474,17 +1454,8 @@ export function renderApp(state: AppViewState) {
                 agentsList: state.agentsList,
                 currentAgentId: resolvedAgentId ?? "main",
                 onAgentChange: (agentId: string) => {
-                  state.sessionKey = buildAgentMainSessionKey({ agentId });
                   state.chatMessages = [];
-                  state.chatStream = null;
-                  state.chatRunId = null;
-                  state.applySettings({
-                    ...state.settings,
-                    sessionKey: state.sessionKey,
-                    lastActiveSessionKey: state.sessionKey,
-                  });
-                  void loadChatHistory(state);
-                  void state.loadAssistantIdentity();
+                  switchChatSession(state, buildAgentMainSessionKey({ agentId }));
                 },
                 onNavigateToAgent: () => {
                   state.agentsSelectedId = resolvedAgentId;

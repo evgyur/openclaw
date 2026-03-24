@@ -214,9 +214,6 @@ export function setThemeMode(
 }
 
 export async function refreshActiveTab(host: SettingsHost) {
-  if (host.tab === "chat") {
-    await refreshChat(host as unknown as OpenClawApp);
-  }
   if (host.tab === "overview") {
     await loadOverview(host);
   }
