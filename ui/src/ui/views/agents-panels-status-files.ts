@@ -28,7 +28,10 @@ function renderAgentContextCard(context: AgentContext, subtitle: string) {
       <div class="agents-overview-grid" style="margin-top: 16px;">
         <div class="agent-kv">
           <div class="label">Workspace</div>
-          <div class="mono">${context.workspace}</div>
+          <div class="mono"><a
+            href="file://${context.workspace}"
+            class="workspace-link"
+          >${context.workspace}</a></div>
         </div>
         <div class="agent-kv">
           <div class="label">Primary Model</div>
@@ -373,7 +376,10 @@ export function renderAgentFiles(params: {
       </div>
       ${
         list
-          ? html`<div class="muted mono" style="margin-top: 8px;">Workspace: ${list.workspace}</div>`
+          ? html`<div class="muted mono" style="margin-top: 8px;">Workspace: <a
+              href="file://${list.workspace}"
+              class="workspace-link"
+            >${list.workspace}</a></div>`
           : nothing
       }
       ${
