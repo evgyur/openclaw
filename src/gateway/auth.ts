@@ -121,16 +121,28 @@ export function isLocalDirectRequest(
   if (!req) {
     return false;
   }
-  const clientIp = resolveRequestClientIp(req, trustedProxies, allowRealIpFallback) ?? "";
-  if (!isLoopbackAddress(clientIp)) {
-    return false;
-  }
 
   const hasForwarded = Boolean(
     req.headers?.["x-forwarded-for"] ||
     req.headers?.["x-real-ip"] ||
     req.headers?.["x-forwarded-host"],
   );
+
+  if (!hasForwarded && isLoopbackAddress(req.socket?.remoteAddress)) {
+    return isLocalishHost(req.headers?.host);
+  }
+
+  // resolveRequestClientIp returns undefined when the remote is a trusted proxy but
+  // the forwarded chain is missing or all-loopback (e.g. x-forwarded-for: 127.0.0.1
+  // from a same-host proxy). In that case fall back to the raw socket address so
+  // that loopback-proxy-to-loopback-gateway traffic is still recognized as local.
+  const clientIp =
+    resolveRequestClientIp(req, trustedProxies, allowRealIpFallback) ??
+    req.socket?.remoteAddress ??
+    "";
+  if (!isLoopbackAddress(clientIp)) {
+    return false;
+  }
 
   const remoteIsTrustedProxy = isTrustedProxyAddress(req.socket?.remoteAddress, trustedProxies);
   return isLocalishHost(req.headers?.host) && (!hasForwarded || remoteIsTrustedProxy);
@@ -379,6 +391,18 @@ export async function authorizeGatewayConnect(
   );
 
   if (auth.mode === "trusted-proxy") {
+    // A local-direct request with no proxy identity header is a raw CLI/sub-agent
+    // connection — allow it directly as "local" without header checks.
+    // If the identity header IS present (same-host reverse proxy forwarding user
+    // identity without x-forwarded-for), fall through to authorizeTrustedProxy so
+    // that allowUsers and userHeader are properly evaluated.
+    const proxyUserHeader = auth.trustedProxy?.userHeader?.toLowerCase();
+    const hasProxyIdentityHeader =
+      proxyUserHeader !== undefined && Boolean(req?.headers?.[proxyUserHeader]);
+    if (localDirect && !hasProxyIdentityHeader) {
+      return { ok: true, method: "trusted-proxy", user: "local" };
+    }
+
     if (!auth.trustedProxy) {
       return { ok: false, reason: "trusted_proxy_config_missing" };
     }

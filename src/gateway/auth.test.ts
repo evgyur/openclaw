@@ -632,4 +632,78 @@ describe("trusted-proxy auth", () => {
     expect(res.ok).toBe(true);
     expect(res.user).toBe("nick@example.com");
   });
+
+  describe("local-direct token fallback", () => {
+    function authorizeLocalDirect(options?: { token?: string; connectToken?: string }) {
+      return authorizeGatewayConnect({
+        auth: {
+          mode: "trusted-proxy",
+          allowTailscale: false,
+          trustedProxy: trustedProxyConfig,
+          token: options?.token,
+        },
+        connectAuth: options?.connectToken ? { token: options.connectToken } : null,
+        trustedProxies: ["127.0.0.1"],
+        req: {
+          socket: { remoteAddress: "127.0.0.1" },
+          headers: { host: "localhost" },
+        } as never,
+      });
+    }
+
+    it("allows local-direct request without credentials", async () => {
+      const res = await authorizeLocalDirect({});
+      expect(res.ok).toBe(true);
+      expect(res.method).toBe("trusted-proxy");
+      expect(res.user).toBe("local");
+    });
+
+    it("runs full proxy auth for same-host proxy that forwards only the identity header", async () => {
+      // A same-host reverse proxy (e.g. Caddy/nginx) may not send x-forwarded-for
+      // but still forwards the configured userHeader; it must go through authorizeTrustedProxy
+      // so allowUsers and userHeader are properly evaluated.
+      const res = await authorizeGatewayConnect({
+        auth: {
+          mode: "trusted-proxy",
+          allowTailscale: false,
+          trustedProxy: trustedProxyConfig,
+        },
+        connectAuth: null,
+        trustedProxies: ["127.0.0.1"],
+        req: {
+          socket: { remoteAddress: "127.0.0.1" },
+          headers: {
+            host: "localhost",
+            "x-forwarded-user": "nick@example.com",
+            "x-forwarded-proto": "https",
+          },
+        } as never,
+      });
+      expect(res.ok).toBe(true);
+      expect(res.method).toBe("trusted-proxy");
+      expect(res.user).toBe("nick@example.com");
+    });
+
+    it("rejects same-host proxy request with missing required header", async () => {
+      const res = await authorizeGatewayConnect({
+        auth: {
+          mode: "trusted-proxy",
+          allowTailscale: false,
+          trustedProxy: trustedProxyConfig,
+        },
+        connectAuth: null,
+        trustedProxies: ["127.0.0.1"],
+        req: {
+          socket: { remoteAddress: "127.0.0.1" },
+          headers: {
+            host: "localhost",
+            "x-forwarded-user": "nick@example.com",
+            // missing x-forwarded-proto (requiredHeader)
+          },
+        } as never,
+      });
+      expect(res.ok).toBe(false);
+      expect(res.reason).toBe("trusted_proxy_missing_header_x-forwarded-proto");
+    });
+  });
 });
