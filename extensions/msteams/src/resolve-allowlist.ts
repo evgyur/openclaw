@@ -166,6 +166,8 @@ export async function resolveMSTeamsChannelAllowlist(params: {
         return {
           input,
           resolved: false,
+          // Fail closed here. Team display names are not unique, so falling
+          // back to a name-based key can widen access across duplicate teams.
           note: "primary channel unavailable",
         };
       }

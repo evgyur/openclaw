@@ -1,6 +1,6 @@
 import type { OpenClawConfig } from "../runtime-api.js";
 import { createMSTeamsConversationStoreFs } from "./conversation-store-fs.js";
-import { resolveTeamGroupId } from "./graph-thread.js";
+import { looksLikeGraphTeamId, resolveTeamGroupId } from "./graph-thread.js";
 import {
   type GraphResponse,
   deleteGraphRequest,
@@ -65,10 +65,6 @@ function stripTargetPrefix(raw: string): string {
     return trimmed.slice("user:".length).trim();
   }
   return trimmed;
-}
-
-function looksLikeGraphTeamId(value: string): boolean {
-  return /^[0-9a-fA-F-]{16,}$/.test(value.trim());
 }
 
 async function resolveGraphConversationTarget(params: {

@@ -43,6 +43,7 @@ vi.mock("./conversation-store-fs.js", () => ({
 
 vi.mock("./graph-thread.js", () => ({
   resolveTeamGroupId: mockState.resolveTeamGroupId,
+  looksLikeGraphTeamId: (value: string) => /^[0-9a-fA-F-]{16,}$/.test(value.trim()),
 }));
 
 const TOKEN = "test-graph-token";

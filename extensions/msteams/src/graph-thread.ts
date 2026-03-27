@@ -18,14 +18,21 @@ type GraphPagedResponse<T> = GraphResponse<T> & {
   "@odata.nextLink"?: string;
 };
 
-function looksLikeGraphTeamId(value: string): boolean {
+// Graph team ids are Azure AD group ids. We keep this check intentionally broad
+// because some tenants surface uppercase GUIDs and Graph ids are the only raw
+// team ids we can safely reuse without another directory lookup.
+export function looksLikeGraphTeamId(value: string): boolean {
   return /^[0-9a-fA-F-]{16,}$/.test(value.trim());
 }
 
 function graphPathFromNextLink(nextLink: string): string | null {
   try {
     const url = new URL(nextLink);
-    return `${url.pathname}${url.search}`;
+    // Graph nextLink values already include the API version (`/v1.0/...` or
+    // `/beta/...`). Strip that prefix so fetchGraphJson can prepend GRAPH_ROOT
+    // exactly once instead of producing `/v1.0/v1.0/...` URLs on later pages.
+    const pathWithoutVersion = url.pathname.replace(/^\/(?:v\d+(?:\.\d+)*|beta)\b/, "");
+    return `${pathWithoutVersion}${url.search}`;
   } catch {
     return null;
   }
@@ -70,24 +77,29 @@ export async function resolveTeamGroupId(
   try {
     const path = `/teams/${encodeURIComponent(conversationTeamId)}?$select=id`;
     const team = await fetchGraphJson<{ id?: string }>({ token, path });
-    const groupId = team.id ?? conversationTeamId;
-    teamGroupIdCache.set(conversationTeamId, {
-      groupId,
-      expiresAt: Date.now() + CACHE_TTL_MS,
-    });
-    return groupId;
-  } catch {
-    // If the runtime id already looks like a Graph team id, preserve the old
-    // behavior and let downstream channel/message APIs attempt the real call
-    // without forcing extra directory scopes up front.
-    if (looksLikeGraphTeamId(conversationTeamId)) {
-      return conversationTeamId;
+    const confirmedGroupId = team.id?.trim();
+    if (confirmedGroupId) {
+      teamGroupIdCache.set(conversationTeamId, {
+        groupId: confirmedGroupId,
+        expiresAt: Date.now() + CACHE_TTL_MS,
+      });
+      return confirmedGroupId;
     }
+  } catch {
+    // Ignore and fall through to the Graph-id / pagination paths below.
+  }
+
+  // Preserve the pre-parity behavior for callers that already have a Graph team
+  // id. We intentionally do not cache the raw id here because a failed lookup on
+  // `/teams/{id}` can also mean the input was a Bot Framework team key.
+  if (looksLikeGraphTeamId(conversationTeamId)) {
+    return conversationTeamId;
   }
 
   // Bot Framework commonly gives us the runtime team key (matching the primary
   // channel id) instead of the Graph group id. Recover the Graph team id by
-  // scanning teams until one reports this primary channel id.
+  // scanning teams until one reports this primary channel id. This path is more
+  // expensive and directory-scope-dependent, so keep it as the last fallback.
   try {
     let path = `/groups?$filter=${encodeURIComponent("resourceProvisioningOptions/Any(x:x eq 'Team')")}&$select=id&$top=999`;
     while (path) {

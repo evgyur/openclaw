@@ -1,7 +1,7 @@
 import type { OpenClawConfig, MSTeamsConfig } from "../runtime-api.js";
 import { GRAPH_ROOT } from "./attachments/shared.js";
 import { createMSTeamsConversationStoreFs } from "./conversation-store-fs.js";
-import { resolveTeamGroupId } from "./graph-thread.js";
+import { looksLikeGraphTeamId, resolveTeamGroupId } from "./graph-thread.js";
 
 const GRAPH_BETA = "https://graph.microsoft.com/beta";
 import { createMSTeamsTokenProvider, loadMSTeamsSdkWithAuth } from "./sdk.js";
@@ -188,13 +188,14 @@ function normalizeStoredConversationId(raw: string): string {
   return raw.split(";")[0] ?? raw;
 }
 
-function looksLikeGraphTeamId(value: string): boolean {
-  return /^[0-9a-fA-F-]{16,}$/.test(value.trim());
-}
-
 async function resolveStoredChannelTarget(
   to: string,
 ): Promise<{ teamId: string; channelId: string } | null> {
+  // Teams plugin/runtime targets come through in two shapes here:
+  //   1) `conversation:<stored-bot-framework-id>` for known conversations
+  //   2) `conversation:<team-key>/<channel-id>` for explicit channel targets
+  // Normalize both before consulting the conversation store so channel rename
+  // keeps working for bound conversations and explicit one-off targets.
   const trimmed = to.trim();
   const cleaned = trimmed.startsWith("conversation:")
     ? trimmed.slice("conversation:".length).trim()
@@ -235,8 +236,9 @@ export async function editChannelMSTeams(params: {
     );
   }
   const token = await resolveGraphToken(params.cfg);
-  // The stored/explicit Teams team id may be the inbound Teams/Bot Framework
-  // key rather than the Graph group id. Resolve it before issuing channel PATCH.
+  // The stored/explicit Teams team id may still be the inbound Bot Framework
+  // team key. Graph channel PATCH requires the Azure AD group/team id instead,
+  // so translate before issuing the rename request.
   const resolvedTeamId = await resolveTeamGroupId(token, target.teamId);
   if (!looksLikeGraphTeamId(resolvedTeamId)) {
     throw new Error(
