@@ -15,13 +15,39 @@ import { createXaiWebSearchProvider } from "./web-search.js";
 
 const PROVIDER_ID = "xai";
 
+function readLegacyGrokApiKey(config: Record<string, unknown>): string | undefined {
+  const tools = config.tools;
+  if (!tools || typeof tools !== "object") {
+    return undefined;
+  }
+  const web = (tools as Record<string, unknown>).web;
+  if (!web || typeof web !== "object") {
+    return undefined;
+  }
+  const search = (web as Record<string, unknown>).search;
+  if (!search || typeof search !== "object") {
+    return undefined;
+  }
+  const grok = (search as Record<string, unknown>).grok;
+  if (!grok || typeof grok !== "object") {
+    return undefined;
+  }
+  return readConfiguredSecretString(
+    (grok as Record<string, unknown>).apiKey,
+    "tools.web.search.grok.apiKey",
+  );
+}
+
 function resolveXaiProviderFallbackApiKey(config: unknown): string | undefined {
   if (!config || typeof config !== "object") {
     return undefined;
   }
-  return readConfiguredSecretString(
-    resolveProviderWebSearchPluginConfig(config as Record<string, unknown>, PROVIDER_ID)?.apiKey,
-    "plugins.entries.xai.config.webSearch.apiKey",
+  const record = config as Record<string, unknown>;
+  return (
+    readConfiguredSecretString(
+      resolveProviderWebSearchPluginConfig(record, PROVIDER_ID)?.apiKey,
+      "plugins.entries.xai.config.webSearch.apiKey",
+    ) ?? readLegacyGrokApiKey(record)
   );
 }
 
