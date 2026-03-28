@@ -11,6 +11,8 @@ export type {
   TelegramAccountConfig,
   TelegramActionConfig,
   TelegramNetworkConfig,
+  TelegramReactionApprovalConfig,
+  TelegramAgentReactionApprovalConfig,
 } from "../config/types.js";
 export type {
   ChannelConfiguredBindingProvider,

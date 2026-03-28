@@ -32,6 +32,7 @@ let listNativeCommandSpecs: typeof import("../../../src/auto-reply/commands-regi
 let listNativeCommandSpecsForConfig: typeof import("../../../src/auto-reply/commands-registry.js").listNativeCommandSpecsForConfig;
 let loadSessionStore: typeof import("../../../src/config/sessions.js").loadSessionStore;
 let normalizeTelegramCommandName: typeof import("../../../src/config/telegram-custom-commands.js").normalizeTelegramCommandName;
+let registerTelegramReactionApproval: typeof import("./reaction-approvals.js").registerTelegramReactionApproval;
 let createTelegramBotBase: typeof import("./bot.js").createTelegramBot;
 let setTelegramBotRuntimeForTest: typeof import("./bot.js").setTelegramBotRuntimeForTest;
 let createTelegramBot: (
@@ -56,6 +57,7 @@ describe("createTelegramBot", () => {
     ({ loadSessionStore } = await import("../../../src/config/sessions.js"));
     ({ normalizeTelegramCommandName } =
       await import("../../../src/config/telegram-custom-commands.js"));
+    ({ registerTelegramReactionApproval } = await import("./reaction-approvals.js"));
     ({ createTelegramBot: createTelegramBotBase, setTelegramBotRuntimeForTest } =
       await import("./bot.js"));
   });
@@ -1792,6 +1794,225 @@ describe("createTelegramBot", () => {
         contextKey: expect.stringContaining("telegram:reaction:add:1234:42:9"),
       }),
     );
+  });
+
+  it("resolves explicit reaction approval before generic reaction notifications", async () => {
+    onSpy.mockClear();
+    enqueueSystemEventSpy.mockClear();
+    const sessionStore = `/tmp/reaction-approval-${process.pid}-approve.json`;
+    const config: import("openclaw/plugin-sdk/config-runtime").OpenClawConfig = {
+      session: { store: sessionStore },
+      channels: {
+        telegram: {
+          dmPolicy: "open",
+          reactionNotifications: "all",
+          reactionApproval: {
+            enabled: true,
+            allowedActors: ["9"],
+          },
+        },
+      },
+    };
+    loadConfig.mockReturnValue(config);
+    await registerTelegramReactionApproval({
+      cfg: config,
+      sessionKey: "session:approval-test",
+      chatId: 1234,
+      messageId: 77,
+      isGroup: false,
+      request: {
+        approveEventText: "love-claw approve branch",
+      },
+    });
+
+    createTelegramBot({ token: "tok" });
+    const handler = getOnHandler("message_reaction") as (
+      ctx: Record<string, unknown>,
+    ) => Promise<void>;
+
+    await handler({
+      update: { update_id: 5001 },
+      messageReaction: {
+        chat: { id: 1234, type: "private" },
+        message_id: 77,
+        user: { id: 9, first_name: "Ada" },
+        date: 1736380800,
+        old_reaction: [],
+        new_reaction: [{ type: "emoji", emoji: "❤️" }],
+      },
+    });
+
+    expect(enqueueSystemEventSpy).toHaveBeenCalledTimes(1);
+    expect(enqueueSystemEventSpy).toHaveBeenCalledWith(
+      "love-claw approve branch",
+      expect.objectContaining({
+        sessionKey: "session:approval-test",
+        contextKey: expect.stringContaining("telegram:reaction-approval:"),
+      }),
+    );
+  });
+
+  it("does not fall back to generic reaction notification for unauthorized approval actor", async () => {
+    onSpy.mockClear();
+    enqueueSystemEventSpy.mockClear();
+    const sessionStore = `/tmp/reaction-approval-${process.pid}-deny.json`;
+    const config: import("openclaw/plugin-sdk/config-runtime").OpenClawConfig = {
+      session: { store: sessionStore },
+      channels: {
+        telegram: {
+          dmPolicy: "open",
+          reactionNotifications: "all",
+          reactionApproval: {
+            enabled: true,
+            allowedActors: ["9"],
+          },
+        },
+      },
+    };
+    loadConfig.mockReturnValue(config);
+    await registerTelegramReactionApproval({
+      cfg: config,
+      sessionKey: "session:approval-test",
+      chatId: 1234,
+      messageId: 78,
+      isGroup: false,
+      request: {
+        approveEventText: "should not fire",
+      },
+    });
+
+    createTelegramBot({ token: "tok" });
+    const handler = getOnHandler("message_reaction") as (
+      ctx: Record<string, unknown>,
+    ) => Promise<void>;
+
+    await handler({
+      update: { update_id: 5002 },
+      messageReaction: {
+        chat: { id: 1234, type: "private" },
+        message_id: 78,
+        user: { id: 11, first_name: "Mallory" },
+        date: 1736380800,
+        old_reaction: [],
+        new_reaction: [{ type: "emoji", emoji: "❤️" }],
+      },
+    });
+
+    expect(enqueueSystemEventSpy).not.toHaveBeenCalled();
+  });
+
+  it("routes mapped deny reactions into the deny branch", async () => {
+    onSpy.mockClear();
+    enqueueSystemEventSpy.mockClear();
+    const sessionStore = `/tmp/reaction-approval-${process.pid}-deny-branch.json`;
+    const config: import("openclaw/plugin-sdk/config-runtime").OpenClawConfig = {
+      session: { store: sessionStore },
+      channels: {
+        telegram: {
+          dmPolicy: "open",
+          reactionNotifications: "all",
+          reactionApproval: {
+            enabled: true,
+            allowedActors: ["9"],
+          },
+        },
+      },
+    };
+    loadConfig.mockReturnValue(config);
+    await registerTelegramReactionApproval({
+      cfg: config,
+      sessionKey: "session:approval-test",
+      chatId: 1234,
+      messageId: 79,
+      isGroup: false,
+      request: {
+        approveEventText: "should not fire",
+        denyEventText: "love-claw deny branch",
+      },
+    });
+
+    createTelegramBot({ token: "tok" });
+    const handler = getOnHandler("message_reaction") as (
+      ctx: Record<string, unknown>,
+    ) => Promise<void>;
+
+    await handler({
+      update: { update_id: 5003 },
+      messageReaction: {
+        chat: { id: 1234, type: "private" },
+        message_id: 79,
+        user: { id: 9, first_name: "Ada" },
+        date: 1736380800,
+        old_reaction: [],
+        new_reaction: [{ type: "emoji", emoji: "❌" }],
+      },
+    });
+
+    expect(enqueueSystemEventSpy).toHaveBeenCalledTimes(1);
+    expect(enqueueSystemEventSpy).toHaveBeenCalledWith(
+      "love-claw deny branch",
+      expect.objectContaining({
+        sessionKey: "session:approval-test",
+        contextKey: expect.stringContaining("telegram:reaction-approval:"),
+      }),
+    );
+  });
+
+  it("does not fall back to generic reaction notification for expired approvals", async () => {
+    onSpy.mockClear();
+    enqueueSystemEventSpy.mockClear();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-28T02:00:00.000Z"));
+    try {
+      const sessionStore = `/tmp/reaction-approval-${process.pid}-expired.json`;
+      const config: import("openclaw/plugin-sdk/config-runtime").OpenClawConfig = {
+        session: { store: sessionStore },
+        channels: {
+          telegram: {
+            dmPolicy: "open",
+            reactionNotifications: "all",
+            reactionApproval: {
+              enabled: true,
+              allowedActors: ["9"],
+              defaultTtlMinutes: 1,
+            },
+          },
+        },
+      };
+      loadConfig.mockReturnValue(config);
+      await registerTelegramReactionApproval({
+        cfg: config,
+        sessionKey: "session:approval-test",
+        chatId: 1234,
+        messageId: 80,
+        isGroup: false,
+        request: {
+          approveEventText: "should not fire",
+        },
+      });
+
+      vi.setSystemTime(new Date("2026-03-28T02:02:00.000Z"));
+      createTelegramBot({ token: "tok" });
+      const handler = getOnHandler("message_reaction") as (
+        ctx: Record<string, unknown>,
+      ) => Promise<void>;
+
+      await handler({
+        update: { update_id: 5004 },
+        messageReaction: {
+          chat: { id: 1234, type: "private" },
+          message_id: 80,
+          user: { id: 9, first_name: "Ada" },
+          date: 1736380800,
+          old_reaction: [],
+          new_reaction: [{ type: "emoji", emoji: "❤️" }],
+        },
+      });
+
+      expect(enqueueSystemEventSpy).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it.each([
