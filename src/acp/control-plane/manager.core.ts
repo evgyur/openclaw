@@ -1257,7 +1257,7 @@ export class AcpSessionManager {
           throw acpError;
         }
         logVerbose(
-          `acp-manager: resume init failed for ${params.sessionKey}; retrying without persisted ACP session id: ${acpError.message}`,
+          `acp-manager: resume_fallback session=${params.sessionKey} persistedResumeSessionId=${persistedResumeSessionId} reason=${acpError.message}`,
         );
         ensured = await ensureSession();
       }
@@ -1353,7 +1353,7 @@ export class AcpSessionManager {
       if (this.isRuntimeStatusUnavailable(status)) {
         this.clearCachedRuntimeState(params.sessionKey);
         logVerbose(
-          `acp-manager: evicting cached runtime handle for ${params.sessionKey} after unhealthy status probe: ${status.summary ?? "status unavailable"}`,
+          `acp-manager: status_unhealthy session=${params.sessionKey} backendSessionId=${params.handle.backendSessionId ?? "-"} agentSessionId=${params.handle.agentSessionId ?? "-"} summary=${status.summary ?? "status unavailable"}`,
         );
         return false;
       }
@@ -1361,7 +1361,7 @@ export class AcpSessionManager {
     } catch (error) {
       this.clearCachedRuntimeState(params.sessionKey);
       logVerbose(
-        `acp-manager: evicting cached runtime handle for ${params.sessionKey} after status probe failed: ${String(error)}`,
+        `acp-manager: status_probe_failed session=${params.sessionKey} backendSessionId=${params.handle.backendSessionId ?? "-"} agentSessionId=${params.handle.agentSessionId ?? "-"} error=${String(error)}`,
       );
       return false;
     }
@@ -1478,7 +1478,7 @@ export class AcpSessionManager {
     }
     this.clearCachedRuntimeState(params.sessionKey);
     logVerbose(
-      `acp-manager: retrying ${params.sessionKey} with a fresh runtime handle after early turn failure: ${params.error.message}`,
+      `acp-manager: fresh_retry session=${params.sessionKey} attempt=${params.attempt + 1} reason=${params.error.message}`,
     );
     return true;
   }

@@ -10,11 +10,13 @@ const hoisted = vi.hoisted(() => {
   const readAcpSessionEntryMock = vi.fn();
   const upsertAcpSessionMetaMock = vi.fn();
   const requireAcpRuntimeBackendMock = vi.fn();
+  const logVerboseMock = vi.fn();
   return {
     listAcpSessionEntriesMock,
     readAcpSessionEntryMock,
     upsertAcpSessionMetaMock,
     requireAcpRuntimeBackendMock,
+    logVerboseMock,
   };
 });
 
@@ -32,6 +34,10 @@ vi.mock("../runtime/registry.js", async (importOriginal) => {
       hoisted.requireAcpRuntimeBackendMock(backendId),
   };
 });
+
+vi.mock("../../globals.js", () => ({
+  logVerbose: (message: string) => hoisted.logVerboseMock(message),
+}));
 
 let AcpSessionManager: typeof import("./manager.js").AcpSessionManager;
 let AcpRuntimeError: typeof import("../runtime/errors.js").AcpRuntimeError;
@@ -166,6 +172,7 @@ describe("AcpSessionManager", () => {
     hoisted.readAcpSessionEntryMock.mockReset();
     hoisted.upsertAcpSessionMetaMock.mockReset().mockResolvedValue(null);
     hoisted.requireAcpRuntimeBackendMock.mockReset();
+    hoisted.logVerboseMock.mockReset();
   });
 
   it("marks ACP-shaped sessions without metadata as stale", () => {
@@ -656,6 +663,9 @@ describe("AcpSessionManager", () => {
     expect(runtimeState.ensureSession).toHaveBeenCalledTimes(2);
     expect(runtimeState.getStatus).toHaveBeenCalledTimes(3);
     expect(runtimeState.runTurn).toHaveBeenCalledTimes(2);
+    expect(hoisted.logVerboseMock).toHaveBeenCalledWith(
+      expect.stringContaining("acp-manager: status_unhealthy session=agent:codex:acp:session-1"),
+    );
   });
 
   it("rehydrates runtime handles after a manager restart", async () => {
@@ -868,6 +878,11 @@ describe("AcpSessionManager", () => {
       | undefined;
     expect(retryInput?.resumeSessionId).toBeUndefined();
     expect(currentMeta.identity?.acpxSessionId).toBe("acpx-sid-fresh");
+    expect(hoisted.logVerboseMock).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `acp-manager: resume_fallback session=${sessionKey} persistedResumeSessionId=acpx-sid-stale`,
+      ),
+    );
   });
 
   it("enforces acp.maxConcurrentSessions when opening new runtime handles", async () => {
@@ -1420,6 +1435,11 @@ describe("AcpSessionManager", () => {
     expect(states).toContain("running");
     expect(states).toContain("idle");
     expect(states).not.toContain("error");
+    expect(hoisted.logVerboseMock).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "acp-manager: fresh_retry session=agent:codex:acp:session-1 attempt=1 reason=acpx exited with code 1",
+      ),
+    );
   });
 
   it("drops persisted stale identity before retrying after an early acpx exit", async () => {
