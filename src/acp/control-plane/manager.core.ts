@@ -614,6 +614,7 @@ export class AcpSessionManager {
       async () => {
         const turnStartedAt = Date.now();
         const actorKey = normalizeActorKey(sessionKey);
+        let skipPersistedResumeOnNextAttempt = false;
         for (let attempt = 0; attempt < 2; attempt += 1) {
           const resolution = this.resolveSession({
             cfg: input.cfg,
@@ -635,7 +636,9 @@ export class AcpSessionManager {
               cfg: input.cfg,
               sessionKey,
               meta: resolvedMeta,
+              skipPersistedResume: skipPersistedResumeOnNextAttempt,
             });
+            skipPersistedResumeOnNextAttempt = false;
             runtime = ensured.runtime;
             handle = ensured.handle;
             meta = ensured.meta;
@@ -756,6 +759,11 @@ export class AcpSessionManager {
               sawTurnOutput,
             });
             if (retryFreshHandle) {
+              skipPersistedResumeOnNextAttempt = true;
+              await this.clearPersistedSessionIdentity({
+                cfg: input.cfg,
+                sessionKey,
+              });
               continue;
             }
             this.recordTurnCompletion({
@@ -1175,6 +1183,7 @@ export class AcpSessionManager {
     cfg: OpenClawConfig;
     sessionKey: string;
     meta: SessionAcpMeta;
+    skipPersistedResume?: boolean;
   }): Promise<{ runtime: AcpRuntime; handle: AcpRuntimeHandle; meta: SessionAcpMeta }> {
     const agent =
       params.meta.agent?.trim() || resolveAcpAgentFromSessionKey(params.sessionKey, "main");
@@ -1218,7 +1227,9 @@ export class AcpSessionManager {
     const previousMeta = params.meta;
     const previousIdentity = resolveSessionIdentityFromMeta(previousMeta);
     const persistedResumeSessionId =
-      mode === "persistent" ? resolveRuntimeResumeSessionId(previousIdentity) : undefined;
+      mode === "persistent" && !params.skipPersistedResume
+        ? resolveRuntimeResumeSessionId(previousIdentity)
+        : undefined;
     const ensureSession = async (resumeSessionId?: string) =>
       await withAcpRuntimeErrorBoundary({
         run: async () =>
@@ -1474,6 +1485,37 @@ export class AcpSessionManager {
 
   private isRecoverableAcpxExitError(message: string): boolean {
     return /^acpx exited with code \d+/i.test(message.trim());
+  }
+
+  private async clearPersistedSessionIdentity(params: {
+    cfg: OpenClawConfig;
+    sessionKey: string;
+  }): Promise<void> {
+    await this.writeSessionMeta({
+      cfg: params.cfg,
+      sessionKey: params.sessionKey,
+      failOnError: true,
+      mutate: (current, entry) => {
+        if (!entry) {
+          return null;
+        }
+        const base = current ?? entry.acp;
+        if (!base) {
+          return null;
+        }
+        return {
+          backend: base.backend,
+          agent: base.agent,
+          runtimeSessionName: base.runtimeSessionName,
+          mode: base.mode,
+          ...(base.runtimeOptions ? { runtimeOptions: base.runtimeOptions } : {}),
+          ...(base.cwd ? { cwd: base.cwd } : {}),
+          state: base.state,
+          lastActivityAt: Date.now(),
+          ...(base.lastError ? { lastError: base.lastError } : {}),
+        };
+      },
+    });
   }
 
   private async evictIdleRuntimeHandles(params: { cfg: OpenClawConfig }): Promise<void> {
