@@ -137,4 +137,51 @@ describe("resetConfiguredBindingTargetInPlace", () => {
       }),
     );
   });
+
+  it("falls back to configured binding backend and cwd when metadata omits them", async () => {
+    const sessionKey = "agent:claude:acp:binding:demo-binding:default:9373ab192b2317f4";
+    sessionMetaMocks.readAcpSessionEntry.mockReturnValue({
+      acp: {
+        agent: "claude",
+        mode: "persistent",
+        runtimeOptions: {
+          runtimeMode: "plan",
+        },
+      },
+    });
+    resolveMocks.resolveConfiguredAcpBindingSpecBySessionKey.mockReturnValue({
+      channel: "demo-binding",
+      accountId: "default",
+      conversationId: "123",
+      agentId: "claude",
+      acpAgentId: "claude",
+      mode: "persistent",
+      backend: "acpx-alt",
+      cwd: "/workspace/configured-binding",
+    });
+
+    const result = await bindingTargets.resetConfiguredBindingTargetInPlace({
+      cfg: baseCfg,
+      sessionKey,
+      reason: "reset",
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(managerMocks.initializeSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionKey,
+        agent: "claude",
+        backendId: "acpx-alt",
+        cwd: "/workspace/configured-binding",
+      }),
+    );
+    expect(managerMocks.updateSessionRuntimeOptions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionKey,
+        patch: {
+          runtimeMode: "plan",
+        },
+      }),
+    );
+  });
 });
