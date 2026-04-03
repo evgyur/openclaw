@@ -1,5 +1,14 @@
 import { type AcpRuntimeErrorCode, AcpRuntimeError, toAcpRuntimeError } from "./errors.js";
 
+function isLikelyClaudeQuotaFailure(error: AcpRuntimeError): boolean {
+  const message = error.message.trim().toLowerCase();
+  return (
+    message.includes("out of extra usage") ||
+    message.includes("current session") && message.includes("100%") ||
+    message === "acpx exited with code 1"
+  );
+}
+
 function resolveAcpRuntimeErrorNextStep(error: AcpRuntimeError): string | undefined {
   if (error.code === "ACP_BACKEND_MISSING" || error.code === "ACP_BACKEND_UNAVAILABLE") {
     return "Run `/acp doctor`, install/enable the backend plugin, then retry.";
@@ -17,6 +26,9 @@ function resolveAcpRuntimeErrorNextStep(error: AcpRuntimeError): string | undefi
     return "This backend does not support that control; use a supported command.";
   }
   if (error.code === "ACP_TURN_FAILED") {
+    if (isLikelyClaudeQuotaFailure(error)) {
+      return "Claude ACP likely hit a session/extra-usage limit. Check Claude Usage and retry after the reset time.";
+    }
     return "Retry, or use `/acp cancel` and send the message again.";
   }
   return undefined;
