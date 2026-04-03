@@ -144,8 +144,14 @@ export async function resetAcpSessionInPlace(params: {
     cfg: params.cfg,
     sessionKey,
   })?.acp;
+  const runtimeOptions = meta?.runtimeOptions ? { ...meta.runtimeOptions } : {};
+  const needsConfiguredBindingFallback =
+    !meta ||
+    !normalizeText(meta.agent) ||
+    !normalizeText(meta.backend) ||
+    !normalizeText(runtimeOptions.cwd ?? meta.cwd);
   const configuredBinding =
-    !meta || !normalizeText(meta.agent)
+    needsConfiguredBindingFallback
       ? resolveConfiguredAcpBindingSpecBySessionKey({
           cfg: params.cfg,
           sessionKey,
@@ -178,8 +184,11 @@ export async function resetAcpSessionInPlace(params: {
     configuredBinding?.agentId ??
     resolveAcpAgentFromSessionKey(sessionKey, "main");
   const mode = meta.mode === "oneshot" ? "oneshot" : "persistent";
-  const runtimeOptions = { ...meta.runtimeOptions };
-  const cwd = normalizeText(runtimeOptions.cwd ?? meta.cwd);
+  const cwd = normalizeText(runtimeOptions.cwd ?? meta.cwd ?? configuredBinding?.cwd);
+  const backendId =
+    normalizeText(meta.backend) ??
+    normalizeText(configuredBinding?.backend) ??
+    normalizeText(params.cfg.acp?.backend);
 
   try {
     await acpManager.closeSession({
@@ -197,7 +206,7 @@ export async function resetAcpSessionInPlace(params: {
       agent,
       mode,
       cwd,
-      backendId: normalizeText(meta.backend) ?? normalizeText(params.cfg.acp?.backend),
+      backendId,
     });
 
     const runtimeOptionsPatch = Object.fromEntries(
