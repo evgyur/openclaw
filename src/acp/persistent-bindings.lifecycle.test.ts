@@ -97,4 +97,44 @@ describe("resetConfiguredBindingTargetInPlace", () => {
       }),
     );
   });
+
+  it("does not replay stale model runtime options during in-place reset", async () => {
+    const sessionKey = "agent:claude:acp:binding:demo-binding:default:9373ab192b2317f4";
+    sessionMetaMocks.readAcpSessionEntry.mockReturnValue({
+      acp: {
+        agent: "claude",
+        mode: "persistent",
+        backend: "acpx",
+        runtimeOptions: {
+          model: "opus",
+          cwd: "/home/bob/clawd",
+          runtimeMode: "plan",
+        },
+      },
+    });
+
+    const result = await bindingTargets.resetConfiguredBindingTargetInPlace({
+      cfg: baseCfg,
+      sessionKey,
+      reason: "reset",
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(managerMocks.updateSessionRuntimeOptions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionKey,
+        patch: {
+          cwd: "/home/bob/clawd",
+          runtimeMode: "plan",
+        },
+      }),
+    );
+    expect(managerMocks.updateSessionRuntimeOptions).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        patch: expect.objectContaining({
+          model: "opus",
+        }),
+      }),
+    );
+  });
 });
