@@ -201,7 +201,9 @@ export async function resetAcpSessionInPlace(params: {
     });
 
     const runtimeOptionsPatch = Object.fromEntries(
-      Object.entries(runtimeOptions).filter(([, value]) => value !== undefined),
+      Object.entries(runtimeOptions).filter(
+        ([key, value]) => key !== "model" && value !== undefined,
+      ),
     ) as SessionAcpMeta["runtimeOptions"];
     if (runtimeOptionsPatch && Object.keys(runtimeOptionsPatch).length > 0) {
       await acpManager.updateSessionRuntimeOptions({
