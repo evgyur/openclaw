@@ -16,4 +16,12 @@ describe("formatAcpRuntimeErrorText", () => {
     expect(text).toContain("ACP error (ACP_TURN_FAILED): turn failed");
     expect(text).toContain("next:");
   });
+
+  it("surfaces quota guidance for generic acpx exit failures", () => {
+    const text = formatAcpRuntimeErrorText(
+      new AcpRuntimeError("ACP_TURN_FAILED", "acpx exited with code 1"),
+    );
+    expect(text).toContain("ACP error (ACP_TURN_FAILED): acpx exited with code 1");
+    expect(text).toContain("Claude ACP likely hit a session/extra-usage limit");
+  });
 });
