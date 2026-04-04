@@ -3,7 +3,12 @@ import {
   canonicalizeMainSessionAlias,
   resolveMainSessionKey,
 } from "../../config/sessions/main-session.js";
-import type { SessionAcpMeta } from "../../config/sessions/types.js";
+import type {
+  SessionAcpIdentity,
+  SessionAcpMeta,
+  SessionAcpQuotaBlock,
+  AcpSessionRuntimeOptions,
+} from "../../config/sessions/types.js";
 import {
   normalizeAgentId,
   normalizeMainKey,
@@ -119,4 +124,81 @@ export function hasLegacyAcpIdentityProjection(meta: SessionAcpMeta): boolean {
     Object.hasOwn(raw, "agentSessionId") ||
     Object.hasOwn(raw, "sessionIdsProvisional")
   );
+}
+
+export function createNextAcpMeta(
+  base: SessionAcpMeta,
+  overrides: {
+    backend?: string;
+    agent?: string;
+    runtimeSessionName?: string;
+    identity?: SessionAcpIdentity | null;
+    mode?: SessionAcpMeta["mode"];
+    runtimeOptions?: AcpSessionRuntimeOptions | null;
+    runtimeModel?: string | null;
+    runtimeModelUpdatedAt?: number | null;
+    quotaBlock?: SessionAcpQuotaBlock | null;
+    cwd?: string | null;
+    state?: SessionAcpMeta["state"];
+    lastActivityAt?: number;
+    lastError?: string | null;
+  },
+): SessionAcpMeta {
+  return {
+    backend: overrides.backend ?? base.backend,
+    agent: overrides.agent ?? base.agent,
+    runtimeSessionName: overrides.runtimeSessionName ?? base.runtimeSessionName,
+    ...(overrides.identity === null
+      ? {}
+      : overrides.identity
+        ? { identity: overrides.identity }
+        : base.identity
+          ? { identity: base.identity }
+          : {}),
+    mode: overrides.mode ?? base.mode,
+    ...(overrides.runtimeOptions === null
+      ? {}
+      : overrides.runtimeOptions
+        ? { runtimeOptions: overrides.runtimeOptions }
+        : base.runtimeOptions
+          ? { runtimeOptions: base.runtimeOptions }
+          : {}),
+    ...(overrides.runtimeModel === null
+      ? {}
+      : overrides.runtimeModel
+        ? { runtimeModel: overrides.runtimeModel }
+        : base.runtimeModel
+          ? { runtimeModel: base.runtimeModel }
+          : {}),
+    ...(overrides.runtimeModelUpdatedAt === null
+      ? {}
+      : typeof overrides.runtimeModelUpdatedAt === "number"
+        ? { runtimeModelUpdatedAt: overrides.runtimeModelUpdatedAt }
+        : typeof base.runtimeModelUpdatedAt === "number"
+          ? { runtimeModelUpdatedAt: base.runtimeModelUpdatedAt }
+          : {}),
+    ...(overrides.quotaBlock === null
+      ? {}
+      : overrides.quotaBlock
+        ? { quotaBlock: overrides.quotaBlock }
+        : base.quotaBlock
+          ? { quotaBlock: base.quotaBlock }
+          : {}),
+    ...(overrides.cwd === null
+      ? {}
+      : overrides.cwd
+        ? { cwd: overrides.cwd }
+        : base.cwd
+          ? { cwd: base.cwd }
+          : {}),
+    state: overrides.state ?? base.state,
+    lastActivityAt: overrides.lastActivityAt ?? base.lastActivityAt,
+    ...(overrides.lastError === null
+      ? {}
+      : typeof overrides.lastError === "string"
+        ? { lastError: overrides.lastError }
+        : base.lastError
+          ? { lastError: base.lastError }
+          : {}),
+  };
 }

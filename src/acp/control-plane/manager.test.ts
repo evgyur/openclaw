@@ -1357,11 +1357,11 @@ describe("AcpSessionManager", () => {
 
     const states = extractStatesFromUpserts();
     expect(states).toContain("running");
-    expect(states).toContain("error");
-    expect(states.at(-1)).toBe("error");
+    expect(states).toContain("quota_blocked");
+    expect(states.at(-1)).toBe("quota_blocked");
   });
 
-  it("marks the session as errored when runtime ensure fails before turn start", async () => {
+  it("marks the session as quota_blocked when runtime ensure fails with a quota-shaped exit", async () => {
     const runtimeState = createRuntime();
     runtimeState.ensureSession.mockRejectedValue(new Error("acpx exited with code 1"));
     hoisted.requireAcpRuntimeBackendMock.mockReturnValue({
@@ -1393,7 +1393,7 @@ describe("AcpSessionManager", () => {
 
     const states = extractStatesFromUpserts();
     expect(states).not.toContain("running");
-    expect(states.at(-1)).toBe("error");
+    expect(states.at(-1)).toBe("quota_blocked");
   });
 
   it("retries once with a fresh runtime handle after an early acpx exit", async () => {
@@ -1700,6 +1700,190 @@ describe("AcpSessionManager", () => {
     expect(currentMeta.identity?.agentSessionId).toBe("agent-fresh");
   });
 
+  it("persists the active runtime model from runtime status details after a turn", async () => {
+    const runtimeState = createRuntime();
+    runtimeState.getStatus.mockResolvedValue({
+      summary: "status=alive",
+      details: {
+        status: "alive",
+        currentModelId: "default",
+      },
+    });
+    hoisted.requireAcpRuntimeBackendMock.mockReturnValue({
+      id: "acpx",
+      runtime: runtimeState.runtime,
+    });
+
+    let currentMeta: SessionAcpMeta = {
+      ...readySessionMeta(),
+      runtimeOptions: {
+        model: "claude-opus-4-6",
+      },
+    };
+    hoisted.readAcpSessionEntryMock.mockImplementation((paramsUnknown: unknown) => {
+      const sessionKey =
+        (paramsUnknown as { sessionKey?: string }).sessionKey ?? "agent:codex:acp:session-1";
+      return {
+        sessionKey,
+        storeSessionKey: sessionKey,
+        acp: currentMeta,
+      };
+    });
+    hoisted.upsertAcpSessionMetaMock.mockImplementation(async (paramsUnknown: unknown) => {
+      const params = paramsUnknown as {
+        mutate: (
+          current: SessionAcpMeta | undefined,
+          entry: { acp?: SessionAcpMeta } | undefined,
+        ) => SessionAcpMeta | null | undefined;
+      };
+      const next = params.mutate(currentMeta, { acp: currentMeta });
+      if (next) {
+        currentMeta = next;
+      }
+      return {
+        sessionId: "session-1",
+        updatedAt: Date.now(),
+        acp: currentMeta,
+      };
+    });
+
+    const manager = new AcpSessionManager();
+    await manager.runTurn({
+      cfg: baseCfg,
+      sessionKey: "agent:codex:acp:session-1",
+      text: "do work",
+      mode: "prompt",
+      requestId: "run-1",
+    });
+
+    expect(currentMeta.runtimeOptions?.model).toBe("claude-opus-4-6");
+    expect(currentMeta.runtimeModel).toBe("default");
+    expect(typeof currentMeta.runtimeModelUpdatedAt).toBe("number");
+  });
+
+  it("marks the session as quota_blocked on Claude usage limit failures", async () => {
+    const runtimeState = createRuntime();
+    hoisted.requireAcpRuntimeBackendMock.mockReturnValue({
+      id: "acpx",
+      runtime: runtimeState.runtime,
+    });
+
+    let currentMeta: SessionAcpMeta = readySessionMeta();
+    hoisted.readAcpSessionEntryMock.mockImplementation((paramsUnknown: unknown) => {
+      const sessionKey =
+        (paramsUnknown as { sessionKey?: string }).sessionKey ?? "agent:codex:acp:session-1";
+      return {
+        sessionKey,
+        storeSessionKey: sessionKey,
+        acp: currentMeta,
+      };
+    });
+    hoisted.upsertAcpSessionMetaMock.mockImplementation(async (paramsUnknown: unknown) => {
+      const params = paramsUnknown as {
+        mutate: (
+          current: SessionAcpMeta | undefined,
+          entry: { acp?: SessionAcpMeta } | undefined,
+        ) => SessionAcpMeta | null | undefined;
+      };
+      const next = params.mutate(currentMeta, { acp: currentMeta });
+      if (next) {
+        currentMeta = next;
+      }
+      return {
+        sessionId: "session-1",
+        updatedAt: Date.now(),
+        acp: currentMeta,
+      };
+    });
+    runtimeState.runTurn.mockImplementation(async function* () {
+      yield {
+        type: "error" as const,
+        message: "Internal error: You're out of extra usage · resets 11pm (Europe/Moscow)",
+      };
+    });
+
+    const manager = new AcpSessionManager();
+    await expect(
+      manager.runTurn({
+        cfg: baseCfg,
+        sessionKey: "agent:codex:acp:session-1",
+        text: "do work",
+        mode: "prompt",
+        requestId: "run-1",
+      }),
+    ).rejects.toMatchObject({
+      code: "ACP_TURN_FAILED",
+    });
+
+    expect(currentMeta.state).toBe("quota_blocked");
+    expect(currentMeta.quotaBlock).toMatchObject({
+      kind: "claude_usage_limit",
+    });
+    expect(currentMeta.lastError).toContain("out of extra usage");
+  });
+
+  it("clears expired quota blocks before the next turn", async () => {
+    const runtimeState = createRuntime();
+    hoisted.requireAcpRuntimeBackendMock.mockReturnValue({
+      id: "acpx",
+      runtime: runtimeState.runtime,
+    });
+
+    let currentMeta: SessionAcpMeta = readySessionMeta({
+      state: "quota_blocked",
+      lastError: "Internal error: You're out of extra usage · resets 11pm (Europe/Moscow)",
+      quotaBlock: {
+        kind: "claude_usage_limit",
+        message: "Internal error: You're out of extra usage · resets 11pm (Europe/Moscow)",
+        detectedAt: Date.now() - 60_000,
+        retryAfterAt: Date.now() - 1_000,
+        retryAfterHint: "11pm (Europe/Moscow)",
+      },
+    });
+    hoisted.readAcpSessionEntryMock.mockImplementation((paramsUnknown: unknown) => {
+      const sessionKey =
+        (paramsUnknown as { sessionKey?: string }).sessionKey ?? "agent:codex:acp:session-1";
+      return {
+        sessionKey,
+        storeSessionKey: sessionKey,
+        acp: currentMeta,
+      };
+    });
+    hoisted.upsertAcpSessionMetaMock.mockImplementation(async (paramsUnknown: unknown) => {
+      const params = paramsUnknown as {
+        mutate: (
+          current: SessionAcpMeta | undefined,
+          entry: { acp?: SessionAcpMeta } | undefined,
+        ) => SessionAcpMeta | null | undefined;
+      };
+      const next = params.mutate(currentMeta, { acp: currentMeta });
+      if (next) {
+        currentMeta = next;
+      }
+      return {
+        sessionId: "session-1",
+        updatedAt: Date.now(),
+        acp: currentMeta,
+      };
+    });
+
+    const manager = new AcpSessionManager();
+    await expect(
+      manager.runTurn({
+        cfg: baseCfg,
+        sessionKey: "agent:codex:acp:session-1",
+        text: "do work",
+        mode: "prompt",
+        requestId: "run-1",
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(runtimeState.ensureSession).toHaveBeenCalledTimes(1);
+    expect(currentMeta.state).toBe("idle");
+    expect(currentMeta.quotaBlock).toBeUndefined();
+    expect(currentMeta.lastError).toBeUndefined();
+  });
+
   it("reconciles pending ACP identities during startup scan", async () => {
     const runtimeState = createRuntime();
     runtimeState.getStatus.mockResolvedValue({
@@ -1852,6 +2036,46 @@ describe("AcpSessionManager", () => {
 
     expect(status.identity?.acpxSessionId).toBe("acpx-stable");
     expect(status.identity?.agentSessionId).toBe("agent-stable");
+  });
+
+  it("returns persisted quota-blocked status without probing the runtime", async () => {
+    const runtimeState = createRuntime();
+    hoisted.requireAcpRuntimeBackendMock.mockReturnValue({
+      id: "acpx",
+      runtime: runtimeState.runtime,
+    });
+    hoisted.readAcpSessionEntryMock.mockReturnValue({
+      sessionKey: "agent:codex:acp:session-1",
+      storeSessionKey: "agent:codex:acp:session-1",
+      acp: {
+        ...readySessionMeta(),
+        state: "quota_blocked",
+        runtimeOptions: {
+          model: "claude-opus-4-6",
+        },
+        runtimeModel: "default",
+        lastError: "Internal error: You're out of extra usage · resets 11pm (Europe/Moscow)",
+        quotaBlock: {
+          kind: "claude_usage_limit",
+          message: "Internal error: You're out of extra usage · resets 11pm (Europe/Moscow)",
+          detectedAt: Date.now(),
+          retryAfterHint: "11pm (Europe/Moscow)",
+        },
+      },
+    });
+
+    const manager = new AcpSessionManager();
+    const status = await manager.getSessionStatus({
+      cfg: baseCfg,
+      sessionKey: "agent:codex:acp:session-1",
+    });
+
+    expect(status.state).toBe("quota_blocked");
+    expect(status.runtimeOptions.model).toBe("claude-opus-4-6");
+    expect(status.runtimeModel).toBe("default");
+    expect(status.quotaBlock?.kind).toBe("claude_usage_limit");
+    expect(runtimeState.ensureSession).not.toHaveBeenCalled();
+    expect(runtimeState.getStatus).not.toHaveBeenCalled();
   });
 
   it("applies persisted runtime options before running turns", async () => {

@@ -2,6 +2,7 @@ import type { OpenClawConfig } from "../../config/config.js";
 import type {
   SessionAcpIdentity,
   AcpSessionRuntimeOptions,
+  SessionAcpQuotaBlock,
   SessionAcpMeta,
   SessionEntry,
 } from "../../config/sessions/types.js";
@@ -87,6 +88,8 @@ export type AcpSessionStatus = {
   state: SessionAcpMeta["state"];
   mode: AcpRuntimeSessionMode;
   runtimeOptions: AcpSessionRuntimeOptions;
+  runtimeModel?: string;
+  quotaBlock?: SessionAcpQuotaBlock;
   capabilities: AcpRuntimeCapabilities;
   runtimeStatus?: AcpRuntimeStatus;
   lastActivityAt: number;

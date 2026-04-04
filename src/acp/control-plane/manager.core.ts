@@ -17,6 +17,12 @@ import {
   resolveRuntimeHandleIdentifiersFromIdentity,
   resolveSessionIdentityFromMeta,
 } from "../runtime/session-identity.js";
+import {
+  createClaudeQuotaBlock,
+  formatQuotaRetryAfterText,
+  isQuotaBlockActive,
+  isQuotaBlockExpired,
+} from "../runtime/session-state.js";
 import type {
   AcpRuntime,
   AcpRuntimeCapabilities,
@@ -48,6 +54,7 @@ import {
 } from "./manager.types.js";
 import {
   canonicalizeAcpSessionKey,
+  createNextAcpMeta,
   createUnsupportedControlError,
   hasLegacyAcpIdentityProjection,
   normalizeAcpErrorCode,
@@ -346,6 +353,26 @@ export class AcpSessionManager {
           sessionKey,
         });
         const resolvedMeta = requireReadySessionMeta(resolution);
+        if (isQuotaBlockActive(resolvedMeta)) {
+          const runtime = this.deps.requireRuntimeBackend(
+            resolvedMeta.backend || undefined,
+          ).runtime;
+          const capabilities = await this.resolveRuntimeCapabilitiesWithoutHandle({ runtime });
+          return {
+            sessionKey,
+            backend: resolvedMeta.backend,
+            agent: resolvedMeta.agent,
+            ...(resolvedMeta.identity ? { identity: resolvedMeta.identity } : {}),
+            state: resolvedMeta.state,
+            mode: resolvedMeta.mode,
+            runtimeOptions: resolveRuntimeOptionsFromMeta(resolvedMeta),
+            ...(resolvedMeta.runtimeModel ? { runtimeModel: resolvedMeta.runtimeModel } : {}),
+            ...(resolvedMeta.quotaBlock ? { quotaBlock: resolvedMeta.quotaBlock } : {}),
+            capabilities,
+            lastActivityAt: resolvedMeta.lastActivityAt,
+            lastError: resolvedMeta.lastError,
+          };
+        }
         const {
           runtime,
           handle: ensuredHandle,
@@ -392,6 +419,8 @@ export class AcpSessionManager {
           state: meta.state,
           mode: meta.mode,
           runtimeOptions: resolveRuntimeOptionsFromMeta(meta),
+          ...(meta.runtimeModel ? { runtimeModel: meta.runtimeModel } : {}),
+          ...(meta.quotaBlock ? { quotaBlock: meta.quotaBlock } : {}),
           capabilities,
           runtimeStatus,
           lastActivityAt: meta.lastActivityAt,
@@ -620,7 +649,24 @@ export class AcpSessionManager {
             cfg: input.cfg,
             sessionKey,
           });
-          const resolvedMeta = requireReadySessionMeta(resolution);
+          let resolvedMeta = requireReadySessionMeta(resolution);
+          if (isQuotaBlockExpired(resolvedMeta)) {
+            await this.clearQuotaBlock({
+              cfg: input.cfg,
+              sessionKey,
+            });
+            const refreshedResolution = this.resolveSession({
+              cfg: input.cfg,
+              sessionKey,
+            });
+            resolvedMeta = requireReadySessionMeta(refreshedResolution);
+          }
+          if (isQuotaBlockActive(resolvedMeta)) {
+            throw new AcpRuntimeError(
+              "ACP_TURN_FAILED",
+              this.buildQuotaBlockedMessage(resolvedMeta),
+            );
+          }
           let runtime: AcpRuntime | undefined;
           let handle: AcpRuntimeHandle | undefined;
           let meta: SessionAcpMeta | undefined;
@@ -654,6 +700,7 @@ export class AcpSessionManager {
               sessionKey,
               state: "running",
               clearLastError: true,
+              clearQuotaBlock: true,
             });
 
             internalAbortController = new AbortController();
@@ -742,6 +789,7 @@ export class AcpSessionManager {
               sessionKey,
               state: "idle",
               clearLastError: true,
+              clearQuotaBlock: true,
             });
             return;
           } catch (error) {
@@ -770,12 +818,26 @@ export class AcpSessionManager {
               startedAt: turnStartedAt,
               errorCode: acpError.code,
             });
-            await this.setSessionState({
-              cfg: input.cfg,
-              sessionKey,
-              state: "error",
-              lastError: acpError.message,
+            const quotaBlock = createClaudeQuotaBlock({
+              message: acpError.message,
             });
+            if (quotaBlock) {
+              await this.setSessionState({
+                cfg: input.cfg,
+                sessionKey,
+                state: "quota_blocked",
+                lastError: acpError.message,
+                quotaBlock,
+              });
+            } else {
+              await this.setSessionState({
+                cfg: input.cfg,
+                sessionKey,
+                state: "error",
+                lastError: acpError.message,
+                clearQuotaBlock: true,
+              });
+            }
             throw acpError;
           } finally {
             if (input.signal && onCallerAbort) {
@@ -1071,6 +1133,7 @@ export class AcpSessionManager {
           sessionKey,
           state: "idle",
           clearLastError: true,
+          clearQuotaBlock: true,
         });
       } catch (error) {
         const acpError = toAcpRuntimeError({
@@ -1290,18 +1353,16 @@ export class AcpSessionManager {
         ? { agentSessionId: nextHandleIdentifiers.agentSessionId }
         : {}),
     };
-    const nextMeta: SessionAcpMeta = {
+    const nextMeta: SessionAcpMeta = createNextAcpMeta(previousMeta, {
       backend: ensured.backend || backend.id,
       agent,
       runtimeSessionName: ensured.runtimeSessionName,
-      ...(nextIdentity ? { identity: nextIdentity } : {}),
+      identity: nextIdentity ?? null,
       mode: params.meta.mode,
-      ...(Object.keys(nextRuntimeOptions).length > 0 ? { runtimeOptions: nextRuntimeOptions } : {}),
-      ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
-      state: previousMeta.state,
+      runtimeOptions: Object.keys(nextRuntimeOptions).length > 0 ? nextRuntimeOptions : null,
+      cwd: effectiveCwd ?? null,
       lastActivityAt: now,
-      ...(previousMeta.lastError ? { lastError: previousMeta.lastError } : {}),
-    };
+    });
     const shouldPersistMeta =
       previousMeta.backend !== nextMeta.backend ||
       previousMeta.runtimeSessionName !== nextMeta.runtimeSessionName ||
@@ -1399,18 +1460,11 @@ export class AcpSessionManager {
         if (!base) {
           return null;
         }
-        return {
-          backend: base.backend,
-          agent: base.agent,
-          runtimeSessionName: base.runtimeSessionName,
-          ...(base.identity ? { identity: base.identity } : {}),
-          mode: base.mode,
-          runtimeOptions: hasOptions ? normalized : undefined,
-          cwd: normalized.cwd,
-          state: base.state,
+        return createNextAcpMeta(base, {
+          runtimeOptions: hasOptions ? normalized : null,
+          cwd: normalized.cwd ?? null,
           lastActivityAt: Date.now(),
-          ...(base.lastError ? { lastError: base.lastError } : {}),
-        };
+        });
       },
       failOnError: true,
     });
@@ -1503,17 +1557,10 @@ export class AcpSessionManager {
         if (!base) {
           return null;
         }
-        return {
-          backend: base.backend,
-          agent: base.agent,
-          runtimeSessionName: base.runtimeSessionName,
-          mode: base.mode,
-          ...(base.runtimeOptions ? { runtimeOptions: base.runtimeOptions } : {}),
-          ...(base.cwd ? { cwd: base.cwd } : {}),
-          state: base.state,
+        return createNextAcpMeta(base, {
+          identity: null,
           lastActivityAt: Date.now(),
-          ...(base.lastError ? { lastError: base.lastError } : {}),
-        };
+        });
       },
     });
   }
@@ -1569,6 +1616,19 @@ export class AcpSessionManager {
     return await resolveManagerRuntimeCapabilities(params);
   }
 
+  private async resolveRuntimeCapabilitiesWithoutHandle(params: {
+    runtime: AcpRuntime;
+  }): Promise<AcpRuntimeCapabilities> {
+    return await resolveManagerRuntimeCapabilities({
+      runtime: params.runtime,
+      handle: {
+        sessionKey: "",
+        backend: "",
+        runtimeSessionName: "",
+      },
+    });
+  }
+
   private async applyRuntimeControls(params: {
     sessionKey: string;
     runtime: AcpRuntime;
@@ -1587,6 +1647,8 @@ export class AcpSessionManager {
     state: SessionAcpMeta["state"];
     lastError?: string;
     clearLastError?: boolean;
+    quotaBlock?: SessionAcpMeta["quotaBlock"];
+    clearQuotaBlock?: boolean;
   }): Promise<void> {
     await this.writeSessionMeta({
       cfg: params.cfg,
@@ -1599,18 +1661,11 @@ export class AcpSessionManager {
         if (!base) {
           return null;
         }
-        const next: SessionAcpMeta = {
-          backend: base.backend,
-          agent: base.agent,
-          runtimeSessionName: base.runtimeSessionName,
-          ...(base.identity ? { identity: base.identity } : {}),
-          mode: base.mode,
-          ...(base.runtimeOptions ? { runtimeOptions: base.runtimeOptions } : {}),
-          ...(base.cwd ? { cwd: base.cwd } : {}),
+        const next: SessionAcpMeta = createNextAcpMeta(base, {
           state: params.state,
           lastActivityAt: Date.now(),
-          ...(base.lastError ? { lastError: base.lastError } : {}),
-        };
+          quotaBlock: params.clearQuotaBlock ? null : params.quotaBlock,
+        });
         if (params.lastError?.trim()) {
           next.lastError = params.lastError.trim();
         } else if (params.clearLastError) {
@@ -1670,6 +1725,26 @@ export class AcpSessionManager {
       );
       return null;
     }
+  }
+
+  private async clearQuotaBlock(params: {
+    cfg: OpenClawConfig;
+    sessionKey: string;
+  }): Promise<void> {
+    await this.setSessionState({
+      cfg: params.cfg,
+      sessionKey: params.sessionKey,
+      state: "idle",
+      clearLastError: true,
+      clearQuotaBlock: true,
+    });
+  }
+
+  private buildQuotaBlockedMessage(meta: SessionAcpMeta): string {
+    const retryAfter = formatQuotaRetryAfterText(meta.quotaBlock);
+    return retryAfter
+      ? `${meta.quotaBlock?.message ?? "Claude usage limit reached."} Retry after ${retryAfter}.`
+      : (meta.quotaBlock?.message ?? "Claude usage limit reached.");
   }
 
   private async withSessionActor<T>(

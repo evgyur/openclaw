@@ -210,8 +210,20 @@ function createBoundThreadSession(sessionKey: string = defaultAcpSessionKey) {
 
 function createAcpSessionEntry(options?: {
   sessionKey?: string;
-  state?: "idle" | "running";
+  state?: "idle" | "running" | "error" | "quota_blocked";
   identity?: AcpSessionIdentity;
+  runtimeOptions?: {
+    model?: string;
+  };
+  runtimeModel?: string;
+  lastError?: string;
+  quotaBlock?: {
+    kind: "claude_usage_limit";
+    message: string;
+    detectedAt: number;
+    retryAfterAt?: number;
+    retryAfterHint?: string;
+  };
 }) {
   const sessionKey = options?.sessionKey ?? defaultAcpSessionKey;
   return {
@@ -224,7 +236,11 @@ function createAcpSessionEntry(options?: {
       ...(options?.identity ? { identity: options.identity } : {}),
       mode: "persistent",
       state: options?.state ?? "idle",
+      ...(options?.runtimeOptions ? { runtimeOptions: options.runtimeOptions } : {}),
+      ...(options?.runtimeModel ? { runtimeModel: options.runtimeModel } : {}),
       lastActivityAt: Date.now(),
+      ...(options?.lastError ? { lastError: options.lastError } : {}),
+      ...(options?.quotaBlock ? { quotaBlock: options.quotaBlock } : {}),
     },
   };
 }
@@ -315,8 +331,20 @@ function expectBoundIntroTextToExclude(match: string): void {
 
 function mockBoundThreadSession(options?: {
   sessionKey?: string;
-  state?: "idle" | "running";
+  state?: "idle" | "running" | "error" | "quota_blocked";
   identity?: AcpSessionIdentity;
+  runtimeOptions?: {
+    model?: string;
+  };
+  runtimeModel?: string;
+  lastError?: string;
+  quotaBlock?: {
+    kind: "claude_usage_limit";
+    message: string;
+    detectedAt: number;
+    retryAfterAt?: number;
+    retryAfterHint?: string;
+  };
 }) {
   const sessionKey = options?.sessionKey ?? defaultAcpSessionKey;
   hoisted.sessionBindingResolveByConversationMock.mockReturnValue(
@@ -327,6 +355,10 @@ function mockBoundThreadSession(options?: {
       sessionKey,
       state: options?.state,
       identity: options?.identity,
+      runtimeOptions: options?.runtimeOptions,
+      runtimeModel: options?.runtimeModel,
+      lastError: options?.lastError,
+      quotaBlock: options?.quotaBlock,
     }),
   );
 }
@@ -1186,6 +1218,41 @@ describe("/acp command", () => {
     expect(result?.reply?.text).toContain("acpx session id: acpx-sid-1");
     expect(result?.reply?.text).toContain("capabilities:");
     expect(hoisted.getStatusMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows requested and active model plus quota diagnostics in /acp status", async () => {
+    mockBoundThreadSession();
+    acpManagerTesting.setAcpSessionManagerForTests({
+      getSessionStatus: vi.fn(async () => ({
+        sessionKey: defaultAcpSessionKey,
+        backend: "acpx",
+        agent: "codex",
+        state: "quota_blocked",
+        mode: "persistent",
+        runtimeOptions: {
+          model: "claude-opus-4-6",
+        },
+        runtimeModel: "default",
+        quotaBlock: {
+          kind: "claude_usage_limit",
+          message: "Internal error: You're out of extra usage · resets 11pm (Europe/Moscow)",
+          detectedAt: Date.now(),
+          retryAfterHint: "11pm (Europe/Moscow)",
+        },
+        capabilities: {
+          controls: ["session/status", "session/set_mode", "session/set_config_option"],
+        },
+        lastActivityAt: Date.now(),
+        lastError: "Internal error: You're out of extra usage · resets 11pm (Europe/Moscow)",
+      })),
+    });
+    const result = await runThreadAcpCommand("/acp status", baseCfg);
+
+    expect(result?.reply?.text).toContain("state: quota_blocked");
+    expect(result?.reply?.text).toContain("requestedModel: claude-opus-4-6");
+    expect(result?.reply?.text).toContain("activeModel: default");
+    expect(result?.reply?.text).toContain("quotaBlock: claude_usage_limit");
+    expect(result?.reply?.text).toContain("retryAfter: 11pm (Europe/Moscow)");
   });
 
   it("updates ACP runtime mode via /acp set-mode", async () => {

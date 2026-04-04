@@ -232,7 +232,7 @@ function classifyAcpStatusProbeError(params: {
 async function probeDiscordAcpBindingHealth(params: {
   cfg: OpenClawConfig;
   sessionKey: string;
-  storedState?: "idle" | "running" | "error";
+  storedState?: "idle" | "running" | "error" | "quota_blocked";
   lastActivityAt?: number;
 }): Promise<{ status: "healthy" | "stale" | "uncertain"; reason?: string }> {
   const { getAcpSessionManager, isAcpRuntimeError } = await loadDiscordProviderSessionRuntime();

@@ -35,6 +35,14 @@ export type SessionAcpIdentity = {
   lastUpdatedAt: number;
 };
 
+export type SessionAcpQuotaBlock = {
+  kind: "claude_usage_limit";
+  message: string;
+  detectedAt: number;
+  retryAfterAt?: number;
+  retryAfterHint?: string;
+};
+
 export type SessionAcpMeta = {
   backend: string;
   agent: string;
@@ -42,8 +50,11 @@ export type SessionAcpMeta = {
   identity?: SessionAcpIdentity;
   mode: "persistent" | "oneshot";
   runtimeOptions?: AcpSessionRuntimeOptions;
+  runtimeModel?: string;
+  runtimeModelUpdatedAt?: number;
+  quotaBlock?: SessionAcpQuotaBlock;
   cwd?: string;
-  state: "idle" | "running" | "error";
+  state: "idle" | "running" | "error" | "quota_blocked";
   lastActivityAt: number;
   lastError?: string;
 };

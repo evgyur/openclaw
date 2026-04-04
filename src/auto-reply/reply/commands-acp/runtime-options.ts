@@ -8,6 +8,7 @@ import {
   validateRuntimePermissionProfileInput,
 } from "../../../acp/control-plane/runtime-options.js";
 import { resolveAcpSessionIdentifierLinesFromIdentity } from "../../../acp/runtime/session-identifiers.js";
+import { formatQuotaRetryAfterText } from "../../../acp/runtime/session-state.js";
 import type { CommandHandlerResult, HandleCommandsParams } from "../commands-types.js";
 import {
   ACP_CWD_USAGE,
@@ -136,6 +137,16 @@ export async function handleAcpStatusAction(
         `sessionMode: ${status.mode}`,
         `state: ${status.state}`,
         `runtimeOptions: ${formatRuntimeOptionsText(status.runtimeOptions)}`,
+        ...(status.runtimeOptions.model ? [`requestedModel: ${status.runtimeOptions.model}`] : []),
+        ...(status.runtimeModel ? [`activeModel: ${status.runtimeModel}`] : []),
+        ...(status.quotaBlock ? [`quotaBlock: ${status.quotaBlock.kind}`] : []),
+        ...(status.quotaBlock?.message ? [`quotaMessage: ${status.quotaBlock.message}`] : []),
+        ...(status.quotaBlock
+          ? (() => {
+              const retryAfter = formatQuotaRetryAfterText(status.quotaBlock);
+              return retryAfter ? [`retryAfter: ${retryAfter}`] : [];
+            })()
+          : []),
         `capabilities: ${formatAcpCapabilitiesText(status.capabilities.controls)}`,
         `lastActivityAt: ${new Date(status.lastActivityAt).toISOString()}`,
         ...(status.lastError ? [`lastError: ${status.lastError}`] : []),

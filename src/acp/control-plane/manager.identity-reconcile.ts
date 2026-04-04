@@ -8,9 +8,10 @@ import {
   resolveRuntimeHandleIdentifiersFromIdentity,
   resolveSessionIdentityFromMeta,
 } from "../runtime/session-identity.js";
+import { resolveAcpRuntimeModelFromStatus } from "../runtime/session-state.js";
 import type { AcpRuntime, AcpRuntimeHandle, AcpRuntimeStatus } from "../runtime/types.js";
 import type { SessionAcpMeta, SessionEntry } from "./manager.types.js";
-import { hasLegacyAcpIdentityProjection } from "./manager.utils.js";
+import { createNextAcpMeta, hasLegacyAcpIdentityProjection } from "./manager.utils.js";
 
 export async function reconcileManagerRuntimeSessionIdentifiers(params: {
   cfg: OpenClawConfig;
@@ -63,6 +64,7 @@ export async function reconcileManagerRuntimeSessionIdentifiers(params: {
 
   const now = Date.now();
   const currentIdentity = resolveSessionIdentityFromMeta(params.meta);
+  const nextRuntimeModel = resolveAcpRuntimeModelFromStatus(runtimeStatus);
   const nextIdentity =
     mergeSessionIdentity({
       current: currentIdentity,
@@ -92,7 +94,9 @@ export async function reconcileManagerRuntimeSessionIdentifiers(params: {
   }
 
   const metaChanged =
-    !identityEquals(currentIdentity, nextIdentity) || hasLegacyAcpIdentityProjection(params.meta);
+    !identityEquals(currentIdentity, nextIdentity) ||
+    hasLegacyAcpIdentityProjection(params.meta) ||
+    (typeof nextRuntimeModel === "string" && nextRuntimeModel !== params.meta.runtimeModel);
   if (!metaChanged) {
     return {
       handle: nextHandle,
@@ -100,18 +104,16 @@ export async function reconcileManagerRuntimeSessionIdentifiers(params: {
       runtimeStatus,
     };
   }
-  const nextMeta: SessionAcpMeta = {
-    backend: params.meta.backend,
-    agent: params.meta.agent,
-    runtimeSessionName: params.meta.runtimeSessionName,
-    ...(nextIdentity ? { identity: nextIdentity } : {}),
-    mode: params.meta.mode,
-    ...(params.meta.runtimeOptions ? { runtimeOptions: params.meta.runtimeOptions } : {}),
-    ...(params.meta.cwd ? { cwd: params.meta.cwd } : {}),
+  const nextMeta: SessionAcpMeta = createNextAcpMeta(params.meta, {
+    identity: nextIdentity ?? null,
+    ...(nextRuntimeModel
+      ? {
+          runtimeModel: nextRuntimeModel,
+          runtimeModelUpdatedAt: now,
+        }
+      : {}),
     lastActivityAt: now,
-    state: params.meta.state,
-    ...(params.meta.lastError ? { lastError: params.meta.lastError } : {}),
-  };
+  });
   if (!identityEquals(currentIdentity, nextIdentity)) {
     const currentAgentSessionId = currentIdentity?.agentSessionId ?? "<none>";
     const nextAgentSessionId = nextIdentity?.agentSessionId ?? "<none>";
@@ -137,18 +139,16 @@ export async function reconcileManagerRuntimeSessionIdentifiers(params: {
       if (!base) {
         return null;
       }
-      return {
-        backend: base.backend,
-        agent: base.agent,
-        runtimeSessionName: base.runtimeSessionName,
-        ...(nextIdentity ? { identity: nextIdentity } : {}),
-        mode: base.mode,
-        ...(base.runtimeOptions ? { runtimeOptions: base.runtimeOptions } : {}),
-        ...(base.cwd ? { cwd: base.cwd } : {}),
-        state: base.state,
+      return createNextAcpMeta(base, {
+        identity: nextIdentity ?? null,
+        ...(nextRuntimeModel
+          ? {
+              runtimeModel: nextRuntimeModel,
+              runtimeModelUpdatedAt: now,
+            }
+          : {}),
         lastActivityAt: now,
-        ...(base.lastError ? { lastError: base.lastError } : {}),
-      };
+      });
     },
   });
   return {
