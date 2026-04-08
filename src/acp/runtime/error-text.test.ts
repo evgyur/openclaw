@@ -16,4 +16,26 @@ describe("formatAcpRuntimeErrorText", () => {
     expect(text).toContain("ACP error (ACP_TURN_FAILED): turn failed");
     expect(text).toContain("next:");
   });
+
+  it("surfaces quota guidance for Claude usage exhaustion", () => {
+    const text = formatAcpRuntimeErrorText(
+      new AcpRuntimeError(
+        "ACP_TURN_FAILED",
+        "Your current session is at 100% and out of extra usage until 3pm.",
+      ),
+    );
+    expect(text).toContain(
+      "ACP error (ACP_TURN_FAILED): Your current session is at 100% and out of extra usage until 3pm.",
+    );
+    expect(text).toContain("Claude ACP likely hit a session/extra-usage limit");
+  });
+
+  it("keeps stale session failures on the generic retry path", () => {
+    const text = formatAcpRuntimeErrorText(
+      new AcpRuntimeError("ACP_TURN_FAILED", "status=dead queue owner unavailable"),
+    );
+    expect(text).toContain("ACP error (ACP_TURN_FAILED): status=dead queue owner unavailable");
+    expect(text).toContain("Retry, or use `/acp cancel` and send the message again.");
+    expect(text).not.toContain("Claude ACP likely hit a session/extra-usage limit");
+  });
 });
