@@ -3370,6 +3370,103 @@ module.exports = {
     );
   });
 
+  it("passes frozen config snapshots into the plugin api", () => {
+    useNoBundledPlugins();
+    const captureKey = "__openclawPluginApiSnapshot";
+    delete (globalThis as Record<string, unknown>)[captureKey];
+
+    const plugin = writePlugin({
+      id: "config-snapshot-plugin",
+      filename: "config-snapshot-plugin.cjs",
+      body: `module.exports = { id: "config-snapshot-plugin", register(api) {
+  globalThis.${captureKey} = {
+    configFrozen: Object.isFrozen(api.config),
+    channelsFrozen: Object.isFrozen(api.config.channels),
+    pluginsFrozen: Object.isFrozen(api.config.plugins),
+    pluginConfigFrozen: Object.isFrozen(api.pluginConfig),
+    nestedPluginConfigFrozen: Object.isFrozen(api.pluginConfig?.nested),
+    channelEnabled: api.config.channels?.telegram?.enabled,
+    pluginFlag: api.pluginConfig?.flag,
+    pluginLevel: api.pluginConfig?.nested?.level,
+  };
+} };`,
+    });
+    fs.writeFileSync(
+      path.join(plugin.dir, "openclaw.plugin.json"),
+      JSON.stringify(
+        {
+          id: "config-snapshot-plugin",
+          configSchema: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              flag: { type: "string" },
+              nested: {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  level: { type: "number" },
+                },
+              },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      "utf-8",
+    );
+
+    const config = {
+      channels: {
+        telegram: {
+          enabled: true,
+        },
+      },
+      plugins: {
+        load: { paths: [plugin.file] },
+        allow: ["config-snapshot-plugin"],
+        entries: {
+          "config-snapshot-plugin": {
+            config: {
+              flag: "initial",
+              nested: {
+                level: 1,
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const registry = loadOpenClawPlugins({
+      cache: false,
+      workspaceDir: plugin.dir,
+      config,
+    });
+
+    const record = registry.plugins.find((entry) => entry.id === "config-snapshot-plugin");
+    expect(record?.status).toBe("loaded");
+
+    config.channels.telegram.enabled = false;
+    config.plugins.entries["config-snapshot-plugin"].config.flag = "mutated";
+    config.plugins.entries["config-snapshot-plugin"].config.nested.level = 99;
+
+    const snapshot = (globalThis as Record<string, unknown>)[captureKey] as Record<string, unknown>;
+    expect(snapshot).toEqual({
+      configFrozen: true,
+      channelsFrozen: true,
+      pluginsFrozen: true,
+      pluginConfigFrozen: true,
+      nestedPluginConfigFrozen: true,
+      channelEnabled: true,
+      pluginFlag: "initial",
+      pluginLevel: 1,
+    });
+
+    delete (globalThis as Record<string, unknown>)[captureKey];
+  });
+
   it("preserves runtime reflection semantics when runtime is lazily initialized", () => {
     useNoBundledPlugins();
     const stateDir = makeTempDir();

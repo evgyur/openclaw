@@ -948,6 +948,40 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
     return runtime;
   };
 
+  function createFrozenPluginApiSnapshot<T>(value: T): T {
+    const seen = new Map<object, unknown>();
+
+    const clone = (input: unknown): unknown => {
+      if (input === null || typeof input !== "object") {
+        return input;
+      }
+      const existing = seen.get(input);
+      if (existing) {
+        return existing;
+      }
+      if (Array.isArray(input)) {
+        const list: unknown[] = [];
+        seen.set(input, list);
+        for (const item of input) {
+          list.push(clone(item));
+        }
+        return Object.freeze(list);
+      }
+      const prototype = Object.getPrototypeOf(input);
+      if (prototype === Object.prototype || prototype === null) {
+        const snapshot: Record<string, unknown> = {};
+        seen.set(input, snapshot);
+        for (const [key, entryValue] of Object.entries(input)) {
+          snapshot[key] = clone(entryValue);
+        }
+        return Object.freeze(snapshot);
+      }
+      return input;
+    };
+
+    return clone(value) as T;
+  }
+
   const createApi = (
     record: PluginRecord,
     params: {
@@ -958,6 +992,10 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
     },
   ): OpenClawPluginApi => {
     const registrationMode = params.registrationMode ?? "full";
+    const configSnapshot = createFrozenPluginApiSnapshot(params.config);
+    const pluginConfigSnapshot = params.pluginConfig
+      ? createFrozenPluginApiSnapshot(params.pluginConfig)
+      : undefined;
     return {
       id: record.id,
       name: record.name,
@@ -966,8 +1004,8 @@ export function createPluginRegistry(registryParams: PluginRegistryParams) {
       source: record.source,
       rootDir: record.rootDir,
       registrationMode,
-      config: params.config,
-      pluginConfig: params.pluginConfig,
+      config: configSnapshot,
+      pluginConfig: pluginConfigSnapshot,
       runtime: resolvePluginRuntime(record.id),
       logger: normalizeLogger(registryParams.logger),
       registerTool:
