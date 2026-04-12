@@ -326,6 +326,21 @@ describe("registerPluginCommand", () => {
       },
     },
     {
+      name: "falls back to originatingTo for Telegram slash commands when from is missing",
+      params: {
+        channel: "telegram",
+        to: "slash:12345",
+        accountId: "default",
+        originatingTo: "telegram:group:-100123:topic:77",
+      } as never,
+      expected: {
+        channel: "telegram",
+        accountId: "default",
+        conversationId: "-100123",
+        threadId: 77,
+      },
+    },
+    {
       name: "does not resolve binding conversations for unsupported command channels",
       params: {
         channel: "slack",

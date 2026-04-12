@@ -146,6 +146,7 @@ function resolveBindingConversationFromCommand(params: {
   channel: string;
   from?: string;
   to?: string;
+  originatingTo?: string;
   accountId?: string;
   messageThreadId?: string | number;
   threadParentId?: string;
@@ -159,11 +160,11 @@ function resolveBindingConversationFromCommand(params: {
   const accountId = params.accountId?.trim() || "default";
   if (params.channel === "telegram") {
     // Native Telegram slash commands use a synthetic `To: slash:<senderId>` value.
-    // Prefer `from` so binding resolution parses the real chat/topic peer.
+    // Prefer the real origin target so binding resolution parses the real chat/topic peer.
     const rawTarget =
       params.to && params.to.startsWith("slash:")
-        ? (params.from ?? params.to)
-        : (params.to ?? params.from);
+        ? (params.from ?? params.originatingTo ?? params.to)
+        : (params.to ?? params.from ?? params.originatingTo);
     if (!rawTarget) {
       return null;
     }
@@ -225,6 +226,7 @@ export async function executePluginCommand(params: {
   config: OpenClawConfig;
   from?: PluginCommandContext["from"];
   to?: PluginCommandContext["to"];
+  originatingTo?: PluginCommandContext["originatingTo"];
   accountId?: PluginCommandContext["accountId"];
   messageThreadId?: PluginCommandContext["messageThreadId"];
   threadParentId?: PluginCommandContext["threadParentId"];
@@ -246,6 +248,7 @@ export async function executePluginCommand(params: {
     channel,
     from: params.from,
     to: params.to,
+    originatingTo: params.originatingTo,
     accountId: params.accountId,
     messageThreadId: params.messageThreadId,
     threadParentId: params.threadParentId,

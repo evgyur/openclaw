@@ -1174,6 +1174,8 @@ export type PluginCommandContext = {
   from?: string;
   /** Raw "To" value (channel-scoped id) */
   to?: string;
+  /** Canonical origin target when native command routing uses synthetic To values */
+  originatingTo?: string;
   /** Account id for multi-account channels */
   accountId?: string;
   /** Thread/topic id if available */

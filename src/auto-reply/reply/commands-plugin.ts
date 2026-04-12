@@ -42,6 +42,7 @@ export const handlePluginCommand: CommandHandler = async (
     config: cfg,
     from: command.from,
     to: command.to,
+    originatingTo: params.ctx.OriginatingTo,
     accountId: params.ctx.AccountId ?? undefined,
     messageThreadId:
       typeof params.ctx.MessageThreadId === "string" ||
