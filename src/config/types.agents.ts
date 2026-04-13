@@ -3,6 +3,7 @@ import type { AgentDefaultsConfig } from "./types.agent-defaults.js";
 import type { AgentModelConfig, AgentSandboxConfig } from "./types.agents-shared.js";
 import type { HumanDelayConfig, IdentityConfig } from "./types.base.js";
 import type { GroupChatConfig } from "./types.messages.js";
+import type { TelegramAgentReactionApprovalConfig } from "./types.telegram.js";
 import type { AgentToolsConfig, MemorySearchConfig } from "./types.tools.js";
 
 export type AgentRuntimeAcpConfig = {
@@ -93,6 +94,8 @@ export type AgentConfig = {
   tools?: AgentToolsConfig;
   /** Optional runtime descriptor for this agent. */
   runtime?: AgentRuntimeConfig;
+  /** Optional Telegram reaction approval overrides for this agent. */
+  reactionApproval?: TelegramAgentReactionApprovalConfig;
 };
 
 export type AgentsConfig = {

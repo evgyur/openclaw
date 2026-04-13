@@ -71,6 +71,34 @@ export type TelegramExecApprovalConfig = {
   target?: TelegramExecApprovalTarget;
 };
 
+export type TelegramReactionApprovalDecision = "yes" | "no";
+
+export type TelegramReactionApprovalConfig = {
+  /** Enable reaction-based approvals for explicitly marked Telegram messages. */
+  enabled?: boolean;
+  /** Allow reaction approvals in direct chats. Default: true. */
+  dmEnabled?: boolean;
+  /** Allow reaction approvals in groups/topics. Default: false. */
+  groupEnabled?: boolean;
+  /** Default time-to-live for pending approvals. Default: 30. */
+  defaultTtlMinutes?: number;
+  /** Telegram user IDs allowed to resolve reaction approvals when request-level allowlist is omitted. */
+  allowedActors?: Array<string | number>;
+  /** Emoji → decision map. Defaults to ❤️ yes, ❌/👎 no. */
+  emojiMap?: Record<string, TelegramReactionApprovalDecision>;
+  /** Whether high-risk approvals may use reactions. Default: block. */
+  highRiskMode?: "block" | "allow";
+};
+
+export type TelegramAgentReactionApprovalConfig = {
+  /** Per-agent opt-in/override for reaction approvals. */
+  enabled?: boolean;
+  /** Per-agent TTL override for reaction approvals. */
+  ttlMinutes?: number;
+  /** Per-agent policy hint for reaction approvals. */
+  defaultPolicy?: "owner_or_allowlist" | "allowlist";
+};
+
 export type TelegramCapabilitiesConfig =
   | string[]
   | {
@@ -92,6 +120,8 @@ export type TelegramAccountConfig = {
   capabilities?: TelegramCapabilitiesConfig;
   /** Telegram-native exec approval delivery + approver authorization. */
   execApprovals?: TelegramExecApprovalConfig;
+  /** Reaction-based approvals for explicitly marked Telegram messages. */
+  reactionApproval?: TelegramReactionApprovalConfig;
   /** Markdown formatting overrides (tables). */
   markdown?: MarkdownConfig;
   /** Override native command registration for Telegram (bool or "auto"). */
