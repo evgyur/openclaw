@@ -187,7 +187,7 @@ describe("buildReplyPayloads media filter integration", () => {
     await expectSameTargetRepliesSuppressed({ provider: "lark", to: "ou_abc123" });
   });
 
-  it("drops all final payloads when block pipeline streamed successfully", async () => {
+  it("preserves unsent media final payloads after successful block streaming", async () => {
     const pipeline: Parameters<typeof buildReplyPayloads>[0]["blockReplyPipeline"] = {
       didStream: () => true,
       isAborted: () => false,
@@ -197,8 +197,34 @@ describe("buildReplyPayloads media filter integration", () => {
       stop: () => {},
       hasBuffered: () => false,
     };
-    // shouldDropFinalPayloads short-circuits to [] when the pipeline streamed
-    // without aborting, so hasSentPayload is never reached.
+
+    const { replyPayloads } = await buildReplyPayloads({
+      ...baseParams,
+      blockStreamingEnabled: true,
+      blockReplyPipeline: pipeline,
+      replyToMode: "all",
+      payloads: [{ text: "response", mediaUrl: "file:///tmp/photo.jpg", replyToId: "post-123" }],
+    });
+
+    expect(replyPayloads).toHaveLength(1);
+    expect(replyPayloads[0]).toMatchObject({
+      text: "response",
+      mediaUrl: "file:///tmp/photo.jpg",
+      replyToId: "post-123",
+    });
+  });
+
+  it("drops unsent text-only final payloads after successful block streaming", async () => {
+    const pipeline: Parameters<typeof buildReplyPayloads>[0]["blockReplyPipeline"] = {
+      didStream: () => true,
+      isAborted: () => false,
+      hasSentPayload: () => false,
+      enqueue: () => {},
+      flush: async () => {},
+      stop: () => {},
+      hasBuffered: () => false,
+    };
+
     const { replyPayloads } = await buildReplyPayloads({
       ...baseParams,
       blockStreamingEnabled: true,
