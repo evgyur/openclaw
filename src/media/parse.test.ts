@@ -105,6 +105,18 @@ describe("splitMediaFromOutput", () => {
     ]);
   });
 
+  it("consumes only one continuation line after an empty media directive", () => {
+    const result = splitMediaFromOutput("Before\nMEDIA:\n/tmp/screenshot.png\nREADME.md\nAfter");
+
+    expect(result.text).toBe("Before\nREADME.md\nAfter");
+    expect(result.mediaUrls).toEqual(["/tmp/screenshot.png"]);
+    expect(result.segments).toEqual([
+      { type: "text", text: "Before" },
+      { type: "media", url: "/tmp/screenshot.png" },
+      { type: "text", text: "README.md\nAfter" },
+    ]);
+  });
+
   it("returns ordered text and media segments while ignoring fenced MEDIA lines", () => {
     const result = splitMediaFromOutput(
       "Before\nMEDIA:https://example.com/a.png\n```text\nMEDIA:https://example.com/ignored.png\n```\nAfter",

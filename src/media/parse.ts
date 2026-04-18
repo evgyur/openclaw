@@ -108,10 +108,7 @@ function isValidMedia(
 function isValidContinuationMedia(candidate: string, wasQuoted: boolean): boolean {
   const hasSpaces = /\s/.test(candidate);
   const allowSpaces =
-    wasQuoted ||
-    /^https?:\/\//i.test(candidate) ||
-    candidate.startsWith("file://") ||
-    looksLikeLocalFilePath(candidate);
+    wasQuoted || /^https?:\/\//i.test(candidate) || looksLikeLocalFilePath(candidate);
 
   if (hasSpaces && !allowSpaces) {
     return false;
@@ -214,38 +211,24 @@ export function splitMediaFromOutput(raw: string): {
     const isEmptyMediaDirective = matches.every((match) => (match[1] ?? "").trim() === "");
     if (isEmptyMediaDirective) {
       let nextLineOffset = lineOffset + line.length + 1;
-      const continuationSegments: ParsedMediaOutputSegment[] = [];
-      let consumedContinuationLines = 0;
-
-      for (let nextLineIndex = lineIndex + 1; nextLineIndex < lines.length; nextLineIndex += 1) {
-        const nextLine = lines[nextLineIndex];
-        if (hasFenceMarkers && isInsideFence(fenceSpans, nextLineOffset)) {
-          break;
-        }
-
+      const nextLine = lines[lineIndex + 1];
+      if (
+        nextLine !== undefined &&
+        !(hasFenceMarkers && isInsideFence(fenceSpans, nextLineOffset))
+      ) {
         const candidateText = nextLine.trim();
-        if (!candidateText) {
-          break;
+        if (candidateText) {
+          const unwrapped = unwrapQuoted(candidateText);
+          const candidate = normalizeMediaSource(cleanCandidate(unwrapped ?? candidateText));
+          if (isValidContinuationMedia(candidate, unwrapped !== undefined)) {
+            media.push(candidate);
+            foundMediaToken = true;
+            segments.push({ type: "media", url: candidate });
+            lineIndex += 1;
+            lineOffset = nextLineOffset + nextLine.length + 1;
+            continue;
+          }
         }
-
-        const unwrapped = unwrapQuoted(candidateText);
-        const candidate = normalizeMediaSource(cleanCandidate(unwrapped ?? candidateText));
-        if (!isValidContinuationMedia(candidate, unwrapped !== undefined)) {
-          break;
-        }
-
-        media.push(candidate);
-        foundMediaToken = true;
-        continuationSegments.push({ type: "media", url: candidate });
-        consumedContinuationLines += 1;
-        nextLineOffset += nextLine.length + 1;
-      }
-
-      if (continuationSegments.length > 0) {
-        segments.push(...continuationSegments);
-        lineIndex += consumedContinuationLines;
-        lineOffset = nextLineOffset;
-        continue;
       }
 
       keptLines.push(line);
