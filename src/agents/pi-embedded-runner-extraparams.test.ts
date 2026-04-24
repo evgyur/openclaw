@@ -2324,7 +2324,41 @@ describe("applyExtraParamsToAgent", () => {
     expect(payload.context_management).toEqual([{ type: "compaction", compact_threshold: 12_345 }]);
   });
 
-  it("auto-injects OpenAI Responses context_management compaction for direct OpenAI models", () => {
+  it("auto-injects OpenAI Responses context_management compaction for direct OpenAI models when runtime contextWindow is large enough", () => {
+    const payload = runResponsesPayloadMutationCase({
+      applyProvider: "openai",
+      applyModelId: "gpt-5",
+      model: {
+        api: "openai-responses",
+        provider: "openai",
+        id: "gpt-5",
+        baseUrl: "https://api.openai.com/v1",
+        contextWindow: 400_000,
+      } as unknown as Model<"openai-responses">,
+    });
+    expect(payload.context_management).toEqual([
+      {
+        type: "compaction",
+        compact_threshold: 280_000,
+      },
+    ]);
+  });
+
+  it("does not auto-inject OpenAI Responses context_management compaction when runtime contextWindow is unknown", () => {
+    const payload = runResponsesPayloadMutationCase({
+      applyProvider: "openai",
+      applyModelId: "gpt-5",
+      model: {
+        api: "openai-responses",
+        provider: "openai",
+        id: "gpt-5",
+        baseUrl: "https://api.openai.com/v1",
+      } as unknown as Model<"openai-responses">,
+    });
+    expect(payload).not.toHaveProperty("context_management");
+  });
+
+  it("does not auto-inject OpenAI Responses context_management compaction when runtime contextWindow is below the safety floor", () => {
     const payload = runResponsesPayloadMutationCase({
       applyProvider: "openai",
       applyModelId: "gpt-5",
@@ -2336,12 +2370,7 @@ describe("applyExtraParamsToAgent", () => {
         contextWindow: 200_000,
       } as unknown as Model<"openai-responses">,
     });
-    expect(payload.context_management).toEqual([
-      {
-        type: "compaction",
-        compact_threshold: 140_000,
-      },
-    ]);
+    expect(payload).not.toHaveProperty("context_management");
   });
 
   it("does not auto-inject OpenAI Responses context_management for Azure by default", () => {

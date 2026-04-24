@@ -111,12 +111,38 @@ function parsePositiveInteger(value: unknown): number | undefined {
   return undefined;
 }
 
-function resolveOpenAIResponsesCompactThreshold(model: { contextWindow?: unknown }): number {
+const OPENAI_RESPONSES_AUTO_COMPACTION_MIN_CONTEXT_WINDOW = 400_000;
+
+type OpenAIResponsesCompactThresholdResolution =
+  | { compactThreshold: number; autoInjected: true }
+  | {
+      compactThreshold: undefined;
+      autoInjected: false;
+      reason: "missing-context-window" | "context-window-too-small";
+    };
+
+function resolveOpenAIResponsesCompactThreshold(model: {
+  contextWindow?: unknown;
+}): OpenAIResponsesCompactThresholdResolution {
   const contextWindow = parsePositiveInteger(model.contextWindow);
-  if (contextWindow) {
-    return Math.max(1_000, Math.floor(contextWindow * 0.7));
+  if (!contextWindow) {
+    return {
+      compactThreshold: undefined,
+      autoInjected: false,
+      reason: "missing-context-window",
+    };
   }
-  return 80_000;
+  if (contextWindow < OPENAI_RESPONSES_AUTO_COMPACTION_MIN_CONTEXT_WINDOW) {
+    return {
+      compactThreshold: undefined,
+      autoInjected: false,
+      reason: "context-window-too-small",
+    };
+  }
+  return {
+    compactThreshold: Math.max(1_000, Math.floor(contextWindow * 0.7)),
+    autoInjected: true,
+  };
 }
 
 function shouldEnableOpenAIResponsesServerCompaction(
@@ -319,9 +345,22 @@ export function createOpenAIResponsesContextManagementWrapper(
       return underlying(model, context, options);
     }
 
-    const compactThreshold =
-      parsePositiveInteger(extraParams?.responsesCompactThreshold) ??
-      resolveOpenAIResponsesCompactThreshold(model);
+    const configuredCompactThreshold = parsePositiveInteger(extraParams?.responsesCompactThreshold);
+    const autoCompactThreshold = resolveOpenAIResponsesCompactThreshold(model);
+    const compactThreshold = configuredCompactThreshold ?? autoCompactThreshold.compactThreshold;
+    if (
+      useServerCompaction &&
+      configuredCompactThreshold === undefined &&
+      !autoCompactThreshold.autoInjected
+    ) {
+      const reason =
+        autoCompactThreshold.reason === "missing-context-window"
+          ? "runtime model context window is unknown"
+          : `runtime model context window is below ${OPENAI_RESPONSES_AUTO_COMPACTION_MIN_CONTEXT_WINDOW} tokens`;
+      log.warn(
+        `skipping automatic OpenAI Responses context_management compaction for ${model.provider}/${model.id}: ${reason}`,
+      );
+    }
     const originalOnPayload = options?.onPayload;
     return underlying(model, context, {
       ...options,
@@ -332,8 +371,8 @@ export function createOpenAIResponsesContextManagementWrapper(
             forceStore,
             stripStore,
             stripPromptCache,
-            useServerCompaction,
-            compactThreshold,
+            useServerCompaction: useServerCompaction && compactThreshold !== undefined,
+            compactThreshold: compactThreshold ?? 0,
           });
         }
         return originalOnPayload?.(payload, model);
