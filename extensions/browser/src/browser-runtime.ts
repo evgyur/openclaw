@@ -45,6 +45,21 @@ export {
   DEFAULT_OPENCLAW_BROWSER_PROFILE_NAME,
 } from "./browser/constants.js";
 export {
+  BROWSER_RELAY_SECURITY_DEFAULTS,
+  BrowserProxyParamsSchema,
+  BrowserRelayErrorSchema,
+  BrowserRelayRequestParamsSchema,
+  BrowserRelaySecurityDefaultsSchema,
+  validateBrowserProxyParams,
+  validateBrowserRelayRequestParams,
+} from "./browser/relay-contracts.js";
+export type {
+  BrowserProxyParams,
+  BrowserRelayError,
+  BrowserRelayRequestParams,
+  BrowserRelaySecurityDefaults,
+} from "./browser/relay-contracts.js";
+export {
   parseBrowserMajorVersion,
   readBrowserVersion,
   resolveGoogleChromeExecutableForPlatform,

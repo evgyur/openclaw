@@ -4,6 +4,7 @@ import { withTimeout } from "openclaw/plugin-sdk/browser-node-runtime";
 import { detectMime } from "openclaw/plugin-sdk/browser-setup-tools";
 import { redactCdpUrl } from "../browser/cdp.helpers.js";
 import { resolveBrowserConfig } from "../browser/config.js";
+import { validateBrowserProxyParams } from "../browser/relay-contracts.js";
 import {
   isPersistentBrowserProfileMutation,
   normalizeBrowserRequestPath,
@@ -14,15 +15,6 @@ import {
   createBrowserControlContext,
   startBrowserControlServiceFromConfig,
 } from "../control-service.js";
-
-type BrowserProxyParams = {
-  method?: string;
-  path?: string;
-  query?: Record<string, string | number | boolean | null | undefined>;
-  body?: unknown;
-  timeoutMs?: number;
-  profile?: string;
-};
 
 type BrowserProxyFile = {
   path: string;
@@ -219,11 +211,13 @@ function formatBrowserProxyTimeoutMessage(params: {
 }
 
 export async function runBrowserProxyCommand(paramsJSON?: string | null): Promise<string> {
-  const params = decodeParams<BrowserProxyParams>(paramsJSON);
-  const pathValue = typeof params.path === "string" ? params.path.trim() : "";
-  if (!pathValue) {
-    throw new Error("INVALID_REQUEST: path required");
+  const rawParams = decodeParams<unknown>(paramsJSON);
+  const contract = validateBrowserProxyParams(rawParams);
+  if (!contract.ok) {
+    throw new Error(`INVALID_REQUEST: ${contract.error.error}`);
   }
+  const params = contract.value;
+  const pathValue = params.path.trim();
   const proxyConfig = resolveBrowserProxyConfig();
   if (!proxyConfig.enabled) {
     throw new Error("UNAVAILABLE: node browser proxy disabled");

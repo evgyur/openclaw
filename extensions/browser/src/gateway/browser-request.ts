@@ -3,6 +3,7 @@ import {
   normalizeLowercaseStringOrEmpty,
   normalizeOptionalString,
 } from "openclaw/plugin-sdk/text-runtime";
+import { validateBrowserRelayRequestParams } from "../browser/relay-contracts.js";
 import {
   ErrorCodes,
   applyBrowserProxyPaths,
@@ -20,16 +21,7 @@ import {
   startBrowserControlServiceFromConfig,
   withTimeout,
   type GatewayRequestHandlers,
-  type NodeSession,
 } from "../core-api.js";
-
-type BrowserRequestParams = {
-  method?: string;
-  path?: string;
-  query?: Record<string, unknown>;
-  body?: unknown;
-  timeoutMs?: number;
-};
 
 type BrowserProxyFile = {
   path: string;
@@ -42,7 +34,16 @@ type BrowserProxyResult = {
   files?: BrowserProxyFile[];
 };
 
-function isBrowserNode(node: NodeSession) {
+type BrowserNodeSession = {
+  nodeId: string;
+  remoteIp?: string;
+  displayName?: string;
+  caps?: unknown[];
+  commands?: unknown[];
+  platform?: string;
+};
+
+function isBrowserNode(node: BrowserNodeSession) {
   const caps = Array.isArray(node.caps) ? node.caps : [];
   const commands = Array.isArray(node.commands) ? node.commands : [];
   return caps.includes("browser") || commands.includes("browser.proxy");
@@ -52,7 +53,7 @@ function normalizeNodeKey(value: string) {
   return normalizeLowercaseStringOrEmpty(value).replace(/[^a-z0-9]+/g, "");
 }
 
-function resolveBrowserNode(nodes: NodeSession[], query: string): NodeSession | null {
+function resolveBrowserNode(nodes: BrowserNodeSession[], query: string): BrowserNodeSession | null {
   const q = normalizeOptionalString(query) ?? "";
   if (!q) {
     return null;
@@ -89,8 +90,8 @@ function resolveBrowserNode(nodes: NodeSession[], query: string): NodeSession | 
 
 function resolveBrowserNodeTarget(params: {
   cfg: ReturnType<typeof loadConfig>;
-  nodes: NodeSession[];
-}): NodeSession | null {
+  nodes: BrowserNodeSession[];
+}): BrowserNodeSession | null {
   const policy = params.cfg.gateway?.nodes?.browser;
   const mode = policy?.mode ?? "auto";
   if (mode === "off") {
@@ -133,7 +134,18 @@ export async function handleBrowserGatewayRequest({
   respond,
   context,
 }: Parameters<GatewayRequestHandlers["browser.request"]>[0]) {
-  const typed = params as BrowserRequestParams;
+  const contract = validateBrowserRelayRequestParams(params);
+  if (!contract.ok) {
+    respond(
+      false,
+      undefined,
+      errorShape(ErrorCodes.INVALID_REQUEST, contract.error.error, {
+        details: contract.error,
+      }),
+    );
+    return;
+  }
+  const typed = contract.value;
   const methodRaw = (normalizeOptionalString(typed.method) ?? "").toUpperCase();
   const path = normalizeOptionalString(typed.path) ?? "";
   const query = typed.query && typeof typed.query === "object" ? typed.query : undefined;
@@ -172,7 +184,7 @@ export async function handleBrowserGatewayRequest({
   }
 
   const cfg = loadConfig();
-  let nodeTarget: NodeSession | null = null;
+  let nodeTarget: BrowserNodeSession | null = null;
   try {
     nodeTarget = resolveBrowserNodeTarget({
       cfg,
