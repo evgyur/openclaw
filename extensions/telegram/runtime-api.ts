@@ -6,7 +6,9 @@ export type {
   PluginRuntime,
   TelegramAccountConfig,
   TelegramActionConfig,
+  TelegramAgentReactionApprovalConfig,
   TelegramNetworkConfig,
+  TelegramReactionApprovalConfig,
 } from "openclaw/plugin-sdk/telegram-core";
 export type { TelegramApiOverride } from "./src/send.js";
 export type {

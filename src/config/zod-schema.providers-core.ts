@@ -188,6 +188,18 @@ export const TelegramAccountSchemaBase = z
       })
       .strict()
       .optional(),
+    reactionApproval: z
+      .object({
+        enabled: z.boolean().optional(),
+        dmEnabled: z.boolean().optional(),
+        groupEnabled: z.boolean().optional(),
+        defaultTtlMinutes: z.number().int().positive().optional(),
+        allowedActors: TelegramIdListSchema.optional(),
+        emojiMap: z.record(z.string(), z.enum(["yes", "no"])).optional(),
+        highRiskMode: z.enum(["block", "allow"]).optional(),
+      })
+      .strict()
+      .optional(),
     markdown: MarkdownConfigSchema,
     enabled: z.boolean().optional(),
     commands: ProviderCommandsSchema,

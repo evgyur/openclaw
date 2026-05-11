@@ -1,5 +1,5 @@
 import { type Bot, GrammyError, InputFile } from "grammy";
-import type { ReplyToMode } from "openclaw/plugin-sdk/config-runtime";
+import { loadConfig, type ReplyToMode } from "openclaw/plugin-sdk/config-runtime";
 import type { MarkdownTableMode } from "openclaw/plugin-sdk/config-runtime";
 import { fireAndForgetHook } from "openclaw/plugin-sdk/hook-runtime";
 import { createInternalHookEvent, triggerInternalHook } from "openclaw/plugin-sdk/hook-runtime";
@@ -26,6 +26,10 @@ import {
   renderTelegramHtmlText,
   wrapFileReferencesInHtml,
 } from "../format.js";
+import {
+  registerTelegramReactionApproval,
+  type TelegramReactionApprovalRequest,
+} from "../reaction-approvals.js";
 import { buildInlineKeyboard } from "../send.js";
 import { resolveTelegramVoiceSend } from "../voice.js";
 import {
@@ -53,6 +57,7 @@ type DeliveryProgress = ReplyThreadDeliveryProgress & {
 type TelegramReplyChannelData = {
   buttons?: TelegramInlineButtons;
   pin?: boolean;
+  reactionApproval?: TelegramReactionApprovalRequest;
 };
 
 type ChunkTextFn = (markdown: string) => ReturnType<typeof markdownToTelegramChunks>;
@@ -566,6 +571,7 @@ export async function deliverReplies(params: {
   replies: ReplyPayload[];
   chatId: string;
   accountId?: string;
+  agentId?: string;
   sessionKeyForInternalHooks?: string;
   mirrorIsGroup?: boolean;
   mirrorGroupId?: string;
@@ -701,6 +707,19 @@ export async function deliverReplies(params: {
         runtime: params.runtime,
         firstDeliveredMessageId,
       });
+
+      if (telegramData?.reactionApproval && typeof firstDeliveredMessageId === "number") {
+        await registerTelegramReactionApproval({
+          cfg: loadConfig(),
+          accountId: params.accountId,
+          agentId: params.agentId,
+          sessionKey: params.sessionKeyForInternalHooks,
+          chatId: params.chatId,
+          messageId: firstDeliveredMessageId,
+          isGroup: params.mirrorIsGroup === true,
+          request: telegramData.reactionApproval,
+        });
+      }
 
       emitMessageSentHooks({
         hookRunner,

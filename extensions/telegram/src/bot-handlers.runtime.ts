@@ -93,6 +93,7 @@ import {
   resolveModelSelection,
   type ProviderInfo,
 } from "./model-buttons.js";
+import { resolveTelegramReactionApproval } from "./reaction-approvals.js";
 import { buildInlineKeyboard } from "./send.js";
 
 export const registerTelegramHandlers = ({
@@ -862,6 +863,33 @@ export const registerTelegramHandlers = ({
       }
       senderLabel = senderLabel || "unknown";
 
+      const runtimeConfig = telegramDeps.loadConfig();
+      for (const r of addedReactions) {
+        const approval = await resolveTelegramReactionApproval({
+          cfg: runtimeConfig,
+          accountId,
+          chatId,
+          messageId,
+          actorId: senderId,
+          emoji: r.emoji,
+        });
+        if (!approval.matched) {
+          continue;
+        }
+        if (approval.resolved) {
+          telegramDeps.enqueueSystemEvent(approval.eventText, {
+            sessionKey: approval.record.sessionKey,
+            contextKey: approval.contextKey,
+          });
+          logVerbose(`telegram: reaction approval resolved: ${approval.eventText}`);
+        } else {
+          logVerbose(
+            `telegram: reaction approval ignored (${approval.reason}) for ${chatId}:${messageId}`,
+          );
+        }
+        return;
+      }
+
       // Reactions target a specific message_id; the Telegram Bot API does not include
       // message_thread_id on MessageReactionUpdated, so we route to the chat-level
       // session (forum topic routing is not available for reactions).
@@ -872,7 +900,7 @@ export const registerTelegramHandlers = ({
       const parentPeer = buildTelegramParentPeer({ isGroup, resolvedThreadId, chatId });
       // Fresh config for bindings lookup; other routing inputs are payload-derived.
       const route = resolveAgentRoute({
-        cfg: telegramDeps.loadConfig(),
+        cfg: runtimeConfig,
         channel: "telegram",
         accountId,
         peer: { kind: isGroup ? "group" : "direct", id: peerId },
